@@ -3,26 +3,24 @@ from tensorflow.keras import backend as K
 from functools import reduce
 from tensorflow import gather
 
-def project(kernel):
-    """
-    Projects onto kernel basis. Fancy way of saying extract coefficients
-    :param kernel: this will have shape 3 x 3 x (N_shells x N_filters) but has to be numpy
-    :return: weights this will have shape 6 x (N_shells x N_filters) will be numpy
-    """
-    N=kernel.shape[-1]
-    weights = np.empty([9,N])
-    for i in range(0,N):
-        weights[0,i] = kernel[1, 2, i]
-        weights[1,i] = kernel[0, 2, i]
-        weights[2,i] = kernel[0, 1, i]
-        weights[3,i] = kernel[1, 0, i]
-        weights[4,i] = kernel[2, 0, i]
-        weights[5,i] = kernel[2, 1, i]
-        weights[6, i] = kernel[0, 0, i]
-        weights[7, i] = kernel[1, 1, i]
-        weights[8, i] = kernel[2, 2, i]
-
-    return weights
+# def project(kernel):
+#     """
+#     Projects onto kernel basis. Fancy way of saying extract coefficients
+#     :param kernel: this will have shape 3 x 3 x (N_shells x N_filters) but has to be numpy
+#     :return: weights this will have shape 6 x (N_shells x N_filters) will be numpy
+#     """
+#     N=kernel.shape[-1]
+#     weights = np.empty([7,N])
+#     for i in range(0,N):
+#         weights[0,i] = kernel[1, 2, i]
+#         weights[1,i] = kernel[0, 2, i]
+#         weights[2,i] = kernel[0, 1, i]
+#         weights[3,i] = kernel[1, 0, i]
+#         weights[4,i] = kernel[2, 0, i]
+#         weights[5,i] = kernel[2, 1, i]
+#         weights[6, i] = kernel[1, 1, i]
+#
+#     return weights
 
 
 def unproject(weights):
@@ -31,9 +29,8 @@ def unproject(weights):
     :param weights: has shape 6 x (N_shells x N_filters) but has to be numpy
     :return: kernel 3 x 3 x (N_shells x N_filters) but has to be numpy
     """
-
     N=weights.shape[-1]
-    kernel = np.empty([3,3,N])
+    kernel = np.zeros([3,3,N])
     for i in range(0,N):
         kernel[1, 2,i] = weights[0,i]
         kernel[0, 2,i] = weights[1,i]
@@ -41,17 +38,16 @@ def unproject(weights):
         kernel[1, 0,i] = weights[3,i]
         kernel[2, 0,i] = weights[4,i]
         kernel[2, 1,i] = weights[5,i]
-        kernel[0, 0,i] = weights[6, i]
-        kernel[1, 1,i] = weights[7, i]
-        kernel[2, 2,i] = weights[8, i]
+        kernel[1, 1,i] = weights[6, i]
     return kernel
 
-def rotate(kernel, angle):
+def rotate(weights, angle,N):
     """
     Counter clockwise rotation
-    :param kernel: tensor for kernel
+    :param weights: numpy array of 7 weights, center weight at end
     :param angle: angle is represented as an integer
-    :return: rotated tensor kernel
+    :param N: total number of filters
+    :return: rotated weights
     """
     if angle is None:
         angle = 1
@@ -60,26 +56,20 @@ def rotate(kernel, angle):
     else:
         angle = angle % 6
 
-    shape=kernel.shape
-    Ns=kernel.shape[2:]
-    N=reduce(lambda x,y:x*y,Ns)
-    #N1 = kernel.shape[-2]
-    #N2 = kernel.shape[-1]
-    #N = N1 * N2
-    kernel = K.reshape(kernel,[3,3,N])
-    weights = project(kernel.numpy())
+    #weights_n = np.empty([7, N])
+    weights_n = np.copy(weights)
     for i in range(0,N):
-        weights[0:6,i] = np.roll(weights[0:6,i], angle)
-    kernel=K.variable(unproject(weights))
-    return K.reshape(kernel,shape)
+        weights_n[0:6,i] = np.copy(np.roll(weights[0:6,i], angle))
+    return weights_n
 
 
-def reflect(kernel, axis):
+def reflect(weights, axis,N):
     """
     Reflects along an axis.
-    :param kernel: tensor for kernel
+    :param weights: numpy array of 7 weights, center weight at end
     :param axis: axis of reflection, represented as integer 0 is x-axis, 1 is middle of first edge, 2 is first vertex etc..
-    :return:
+    :param N: total number of filters
+    :return: rotated weights
     """
     if axis is None:
         axis = 0
@@ -89,70 +79,105 @@ def reflect(kernel, axis):
         axis = axis % 6
 
     # first reflect on x-axis and then rotate
-    shape = kernel.shape
-    Ns = kernel.shape[2:]
-    N = reduce(lambda x, y: x * y, Ns)
-    #N1 = kernel.shape[-2]
-    #N2 = kernel.shape[-1]
-    #N = N1 * N2
-    kernel=K.reshape(kernel, [3, 3, N])
-    weights = project(kernel.numpy())
+    #weights_n=np.zeros([7,N])
+    weights_n=np.copy(weights)
     for i in range(0,N):
         temp_weights = np.copy(weights[1:3,i])
-        weights[1:3,i] = np.roll(weights[4:6,i], 1)
-        weights[4:6,i] = np.roll(temp_weights, 1)
-    kernel = K.variable(unproject(weights))
-    return rotate(K.reshape(kernel, shape),axis)
-
-    #
+        weights_n[1:3,i] = np.copy(np.roll(weights[4:6,i], 1))
+        weights_n[4:6,i] = np.copy(np.roll(temp_weights, 1))
+    return rotate(weights_n,axis,N)
 
 
+def expand_scalar(weights,N):
 
-def expand_scalar(kernel):
-    kernels = []
+    weights_e = np.zeros([7,N,12])
+    #weights_e = []
     for angle in range(0,6):
-        kernels.append(rotate(kernel,angle))
+        #weights_e.append(rotate(weights,angle,N))
+        weights_e[:,:,angle]=rotate(weights,angle,N)
     for axis in range (0,6):
-        kernels.append(reflect(kernel,axis))
-    return K.concatenate(kernels)
+        #weights_e.append(reflect(weights,axis,N))
+        weights_e[:, :, axis+6] = reflect(weights, axis, N)
+    return weights_e
 
-def rotate_deep(kernel,phi):
-    #kernel has size [3,3,12,in,out] where the 12 is for rotations/reflections
-    #first 6 indices are for rotations and other six are for reflections
+def expand_regular(weights,N):
+    weights_e = np.zeros([7,12,N,12])
+    for phi in range(0,6):
+        weights_e[:,:,:,phi]= rotate_deep(weights,phi,N)
+    for phi in range(0,6):
+        weights_e[:, :, :,phi+6] = reflect_deep(weights, phi, N)
+    return weights_e
+
+def rotate_deep(weights,phi,N):
+    #wights has size [7,12,N] where the 12 is for rotations/reflections
+    #first 6 indices fo the 12 are for rotations and other six are for reflections
     #we need to shift these indices i.e. theta --> theta - phi
-
 
     idx_rot=np.arange(6)
     idx_rot = (idx_rot - phi)%6
     idx_ref = idx_rot + 6
     idx = np.concatenate((idx_rot,idx_ref))
-    kernel=kernel.numpy()
-    kernel=kernel[:,:,idx,:,:]
-    return rotate(K.variable(kernel),phi)
+    weights=weights[:,idx,:]
+    weights=np.reshape(weights,[7,12*N])
+    weights= rotate(weights,phi,N)
+    return np.reshape(weights,[7,12,N])
 
-def reflect_deep(kernel, phi):
-    # kernel has size [3,3,12,in,out] where the 12 is for rotations/reflections
-    # first 6 indices are for rotations and other six are for reflections
+def reflect_deep(weights, phi, N):
+    #wights has size [7,12,N] where the 12 is for rotations/reflections
+    #first 6 indices fo the 12 are for rotations and other six are for reflections
 
     idx_rot = np.arange(6)
     idx_rot = (phi-idx_rot) % 6
     idx_ref = idx_rot + 6
     idx = np.concatenate((idx_ref, idx_rot))
-    kernel = kernel[:, :, idx, :, :]
-    return reflect(kernel, phi)
-
-    #since this is a deep layer and tensor kernel should have
-    #shape [3,3,12,in,out]
-    #we need a phi that will run in range(0,12) 0 to 5 for rot rest refl
-
-    #rotate_deep(kernel,phi)
-    #reflect_deep(kernel,phi)
+    weights = weights[:, idx, :]
+    weights = np.reshape(weights, [7, 12 * N])
+    weights = reflect(weights, phi,N)
+    return np.reshape(weights, [7, 12, N])
 
 
 
-#def gpad(input,deep):
+def gpad(output,deep):
+    shape=input.shape.as_list()
+    H=shape[1]-1
+    # if deep==0: #this padding should already be performed but keeping here if we later generalize
+    #     for c in range(0,5): #padding
+    #         ct=c-1
+    #         input[1:H,c*(H+1)] = np.copy(input[1,(H+1)*ct+1:(H+1)*c-1])
+    #         ct=(c+2)%H
+    #         input[H,(H+1)*c+1:(H+1)*c+H] =np.copy(np.flip(input[1:H,(ct+1)*(H+1)-2]))
+    if deep==1:
+        print("under construction")
+        #for each real channel you have to pad each of the 12 orientation channels.
+        #the padding procedure is the same as scalar EXCEPT you have to copy from a
+        #different orientation channel
+        #might make sense to have a pad scalar function seperately so code is not
+        #repeate.
 
-
+        shape=output.shape.as_list()
+        input_dim=int(shape[-1]/12)
+        output_n=output.numpy()
+        newshape=shape[0:-1]+[input_dim,12]
+        output_n=np.reshape(output_n,newshape)
+        for b in range(0,shape[0]): #handle the batch size first off
+            for i in range(0,input_dim):
+                for r in range(0,12): #this is each orientataion channel
+                    for c in range(0,5):
+                        ct = c - 1
+                        rot_dir=1 #change to minus if you want rotation the other way
+                        if r<=5:
+                            rt=(r+rot_dir)%6
+                        if r>5:
+                            rt=((r-6+rot_dir) % 6) + 6
+                        output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
+                        ct = (c + 2)
+                        if r<=5: #next two if statements for reflection padding
+                            rt=((2-r)%6)+6
+                        if r<=5:
+                            rt=(2-(r-6))%6
+                        output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
+        output_n=np.reshape(output_n,shape)
+        return K.variable(output_n)
 
 def conv2d(input,kernel,deep):
     """
@@ -170,17 +195,37 @@ def conv2d(input,kernel,deep):
     #assume that kernel has shape [3,3,in,out] and out is the number of channels
     #in = 3
     #we have to dump the froup expansion into the channel dimension
-    kernels=[]
-    for angle in range(0,6):
-        kernels.append(rotate(kernel,angle))
-    for axis in range(0,6):
-        kernels.append(reflect(kernel,axis))
-    kernels=K.concatenate(kernels,-1)
-    return kernels
 
+    shape=kernel.shape
+    Ns = kernel.shape[-2:]
+    N = reduce(lambda x, y: x * y, Ns)
+    if deep==0:
+        kernel = K.reshape(kernel, [7, N])
+        kernel_e=expand_scalar(kernel.numpy(),N)
+        new_shape=shape.as_list()
+        new_shape[0]=3
+        new_shape[-1]=12*new_shape[-1]
+        new_shape=[3,]+ new_shape
+        kernel_e=np.reshape(kernel_e,[7,12*N])
+        kernel_e=unproject(kernel_e)
+        kernel_e=np.reshape(kernel_e,new_shape)
+        kernel_e=K.variable(kernel_e)
+        #return K.conv2d(input,kernel_e)
+        return kernel_e
 
-
-
+    if deep==1:
+        kernel = K.reshape(kernel, [7,12,N])
+        kernel_e=expand_regular(kernel.numpy(),N)
+        new_shape = shape.as_list()
+        new_shape[0]=3
+        new_shape[-1] = 12 * new_shape[-1]
+        new_shape=[3,] +new_shape
+        kernel_e=np.reshape(kernel_e,[7,12*12*N])
+        kernel_e=unproject(kernel_e)
+        kernel_e=np.reshape(kernel_e,new_shape)
+        kernel_e=K.variable(kernel_e)
+        return kernel_e
+        #return (K.conv2d(input,kernel_e),deep)
 
 #     # if input has size [batch, x,y,shells*12] it is regular
 #     #kernel will have size [x,y,shells,filters]

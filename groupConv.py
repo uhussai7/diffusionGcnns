@@ -28,14 +28,11 @@ class groupConv(Layer):
                  activity_regularizer=None,
                  kernel_constraint=None,
                  bias_constraint=None,
-                 deep=None,
+                 shells=None,
                  **kwargs):
-        if deep is None:
-            raise ValueError('Please specify whether this is a zeroth layer (deep=0)'
-                             'or a deep layer (deep=1). Found `None`.')
         super(groupConv, self).__init__(**kwargs)
-        kernel_size = 3
-        rank = 2
+        kernel_size = 7
+        rank = 1
         self.filters = filters
         self.kernel_size = conv_utils.normalize_tuple(kernel_size, rank, 'kernel_size')
         self.activation = activations.get(activation)
@@ -46,8 +43,10 @@ class groupConv(Layer):
         self.bias_regularizer = regularizers.get(bias_regularizer)
         self.kernel_constraint = constraints.get(kernel_constraint)
         self.bias_constraint = constraints.get(bias_constraint)
-        self.deep = deep
-
+        self.deep = 1
+        if shells is None:
+            shells=3
+        self.shells=shells
 
     def build(self, input_shape):
         """
@@ -60,16 +59,19 @@ class groupConv(Layer):
         if input_shape[channel_axis] is None:
             raise ValueError('The channel dimension of the inputs '
                              'should be defined. Found `None`.')
-        if self.deep==0:
-            input_dim=input_shape[channel_axis]
-        if self.deep==1 and isinstance(input_shape[channel_axis]%12):
-            input_dim=input_shape[channel_axis]/12
+        input_dim = input_shape[channel_axis]
+        if input_dim==self.shells:
+            self.deep=0
+            kernel_shape = self.kernel_size + (input_dim, self.filters)
+        elif self.deep==1 and input_shape[channel_axis]%12 ==0:
+            input_dim=int(input_shape[channel_axis]/12)
+            kernel_shape = self.kernel_size + (12,input_dim, self.filters)
         else:
-            raise ValueError('The number of channels in deep layer'
-                             'not divisible by order of group'
+            print("input_dim=%d" % (input_dim))
+            raise ValueError('The number of channels in deep layer '
+                             'not divisible by order of group '
                              'something is wrong')
 
-        kernel_shape=self.kernel_size+(input_dim,self.filters)
         self.kernel = self.add_weight(shape=kernel_shape,
                                       initializer=self.kernel_initializer,
                                       name='kernel',
