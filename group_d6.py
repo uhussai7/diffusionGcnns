@@ -147,7 +147,7 @@ def gpad(output,deep):
     #         ct=(c+2)%H
     #         input[H,(H+1)*c+1:(H+1)*c+H] =np.copy(np.flip(input[1:H,(ct+1)*(H+1)-2]))
     if deep==1:
-        print("under construction")
+        #print("under construction")
         #for each real channel you have to pad each of the 12 orientation channels.
         #the padding procedure is the same as scalar EXCEPT you have to copy from a
         #different orientation channel
@@ -159,23 +159,49 @@ def gpad(output,deep):
         output_n=output.numpy()
         newshape=shape[0:-1]+[input_dim,12]
         output_n=np.reshape(output_n,newshape)
+
+        stripfromchart=np.arange(H)
+
         for b in range(0,shape[0]): #handle the batch size first off
             for i in range(0,input_dim):
                 for r in range(0,12): #this is each orientataion channel
                     for c in range(0,5):
-                        ct = c - 1
-                        rot_dir=1 #change to minus if you want rotation the other way
-                        if r<=5:
-                            rt=(r+rot_dir)%6
-                        if r>5:
-                            rt=((r-6+rot_dir) % 6) + 6
-                        output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
-                        ct = (c + 2)
+
+                        if c==0: #left
+                            ct = c - 1
+                            rot_dir=1 #change to minus if you want rotation the other way
+                            if r<=5: #left
+                                rt=(r+rot_dir)%6
+                            if r>5:
+                                rt=((r-6+rot_dir) % 6) + 6
+                            output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
+
+                        if c==4: #right
+                            ct=c+3 %H
+                            if r <= 5:  # next two if statements for reflection padding
+                                rt = ((2 - r) % 6) + 6
+                            if r <= 5:
+                                rt = (2 - (r - 6)) % 6
+                            output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
+
+                        rot_dir = -1 #top  # change to minus if you want rotation the other way
+                        ct = (c + 1)%H
+                        if r <= 5:
+                            rt = (r + rot_dir) % 6
+                        if r > 5:
+                            rt = ((r - 6 + rot_dir) % 6) + 6
+                        output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(
+                            output_n[b, 0:H, ct*(H+1) , i, rt])
+
+
+
+                        ct = (c + 2)%H #bottom
                         if r<=5: #next two if statements for reflection padding
                             rt=((2-r)%6)+6
                         if r<=5:
                             rt=(2-(r-6))%6
                         output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
+
         output_n=np.reshape(output_n,shape)
         return K.variable(output_n)
 
