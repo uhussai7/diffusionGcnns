@@ -138,7 +138,7 @@ def reflect_deep(weights, phi, N):
 
 
 def gpad(output,deep):
-    shape=input.shape.as_list()
+    shape=output.shape.as_list()
     H=shape[1]-1
     # if deep==0: #this padding should already be performed but keeping here if we later generalize
     #     for c in range(0,5): #padding
@@ -160,7 +160,9 @@ def gpad(output,deep):
         newshape=shape[0:-1]+[input_dim,12]
         output_n=np.reshape(output_n,newshape)
 
-        stripfromchart=np.arange(H)
+        strip=np.arange(H)
+        strips = np.arange(H-1)
+        CW=H+1
 
         for b in range(0,shape[0]): #handle the batch size first off
             for i in range(0,input_dim):
@@ -174,15 +176,25 @@ def gpad(output,deep):
                                 rt=(r+rot_dir)%6
                             if r>5:
                                 rt=((r-6+rot_dir) % 6) + 6
-                            output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
+                            row=1+strips
+                            col=c*CW
+                            row1 = 1
+                            col1 = ct*CW+1+strips
+                            #output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
+                            output_n[b, row,col, i, r] = np.copy(output_n[b, row1,col1 , i, rt])
 
                         if c==4: #right
-                            ct=c+3 %H
+                            ct=(c+3) %H
                             if r <= 5:  # next two if statements for reflection padding
                                 rt = ((2 - r) % 6) + 6
                             if r <= 5:
                                 rt = (2 - (r - 6)) % 6
-                            output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
+                            row = strip
+                            col = -1
+                            row1 = H-1
+                            col1 = ct*CW+1+ strip
+                            #output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
+                            output_n[b, row, col, i, r] = np.flip(np.copy(output_n[b, row1, col1, i, rt]))
 
                         rot_dir = -1 #top  # change to minus if you want rotation the other way
                         ct = (c + 1)%H
@@ -190,17 +202,25 @@ def gpad(output,deep):
                             rt = (r + rot_dir) % 6
                         if r > 5:
                             rt = ((r - 6 + rot_dir) % 6) + 6
-                        output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(
-                            output_n[b, 0:H, ct*(H+1) , i, rt])
+                        row = 0
+                        col = c*CW+1+strip
+                        row1 = strip
+                        col1 = ct*CW+1
+                        #output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
+                        output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
 
 
-
-                        ct = (c + 2)%H #bottom
+                        ct = (c + 3)%H #bottom
                         if r<=5: #next two if statements for reflection padding
                             rt=((2-r)%6)+6
                         if r<=5:
                             rt=(2-(r-6))%6
-                        output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
+                        row = H
+                        col = c*CW + 1+strips
+                        row1 = 1+strips
+                        col1 = ct * CW -2
+                        #output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
+                        output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
 
         output_n=np.reshape(output_n,shape)
         return K.variable(output_n)
@@ -236,8 +256,8 @@ def conv2d(input,kernel,deep):
         kernel_e=unproject(kernel_e)
         kernel_e=np.reshape(kernel_e,new_shape)
         kernel_e=K.variable(kernel_e)
-        #return K.conv2d(input,kernel_e)
-        return kernel_e
+        return gpad(K.conv2d(input, kernel_e,padding="same"), 1)
+        #return kernel_e
 
     if deep==1:
         kernel = K.reshape(kernel, [7,12,N])
@@ -250,8 +270,8 @@ def conv2d(input,kernel,deep):
         kernel_e=unproject(kernel_e)
         kernel_e=np.reshape(kernel_e,new_shape)
         kernel_e=K.variable(kernel_e)
-        return kernel_e
-        #return (K.conv2d(input,kernel_e),deep)
+        #return kernel_e
+        return gpad(K.conv2d(input,kernel_e,padding="same"),deep)
 
 #     # if input has size [batch, x,y,shells*12] it is regular
 #     #kernel will have size [x,y,shells,filters]

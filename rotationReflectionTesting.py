@@ -6,10 +6,10 @@ from tensorflow.keras import backend as K
 import matplotlib.pyplot as plt
 
 
-inn=3
-out=1
-g=groupConv.groupConv(1)
-g.build([2,6,30,inn])
+#inn=3
+#out=1
+#g=groupConv.groupConv(1)
+#g.build([2,6,30,inn])
 
 # inr=int(inn/12)
 # weights=np.zeros([7,12,inr,out])
@@ -22,8 +22,11 @@ g.build([2,6,30,inn])
 # g.kernel=K.variable(weights)
 
 X_train=load('K:\\Datasets\\DiffusionIcosahedron\\X_train.npy')
-input=X_train[0:2 ,:,:,:]
+input=X_train[0:2,:,:,:]
 input=K.variable(input)
+g=groupConv.groupConv(1)
+g.build(input.shape)
+
 #shape=input.shape.as_list()
 #shape=[2,]+shape
 #input=K.reshape(input,shape)
