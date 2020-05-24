@@ -24,14 +24,21 @@ import matplotlib.pyplot as plt
 X_train=load('K:\\Datasets\\DiffusionIcosahedron\\X_train.npy')
 input=X_train[0:2,:,:,:]
 input=K.variable(input)
-g=groupConv.groupConv(1)
+g=groupConv.groupConv(2)
 g.build(input.shape)
+output=d6.conv2d(input,g.kernel,g.deep)
+
+g1 = groupConv.groupConv(1)
+g1.build(output.shape)
+output1=d6.conv2d(output,g1.kernel,g1.deep)
+
+
+
 
 #shape=input.shape.as_list()
 #shape=[2,]+shape
 #input=K.reshape(input,shape)
 
-output=d6.conv2d(input,g.kernel,g.deep)
 #d6= groupConv.group_d6()
 # weights=np.zeros([9,1])
 # weights[0:6,0]=np.linspace(1,6,6)

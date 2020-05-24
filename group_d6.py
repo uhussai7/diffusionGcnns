@@ -255,7 +255,7 @@ def conv2d(input,kernel,deep):
         kernel_e=np.reshape(kernel_e,[7,12*N])
         kernel_e=unproject(kernel_e)
         kernel_e=np.reshape(kernel_e,new_shape)
-        kernel_e=K.variable(kernel_e)
+        kernel_e=K.variable(kernel_e) #orientation channels running fastestg1.kerne
         return gpad(K.conv2d(input, kernel_e,padding="same"), 1)
         #return kernel_e
 
@@ -264,14 +264,20 @@ def conv2d(input,kernel,deep):
         kernel_e=expand_regular(kernel.numpy(),N)
         new_shape = shape.as_list()
         new_shape[0]=3
-        new_shape[-1] = 12 * new_shape[-1]
-        new_shape=[3,] +new_shape
+        #new_shape[-1] = 12 * new_shape[-1]
+        new_shape=[3,] +new_shape + [12,]
         kernel_e=np.reshape(kernel_e,[7,12*12*N])
         kernel_e=unproject(kernel_e)
         kernel_e=np.reshape(kernel_e,new_shape)
+        kernel_e=np.moveaxis(kernel_e,2,-2)
         kernel_e=K.variable(kernel_e)
-        #return kernel_e
-        return gpad(K.conv2d(input,kernel_e,padding="same"),deep)
+
+        # outie=[]
+        # for phi in range(0,12):
+        #      outie.append(gpad(K.conv2d()))
+
+        return kernel_e
+        #return gpad(K.conv2d(input,kernel_e,padding="same"),deep)
 
 #     # if input has size [batch, x,y,shells*12] it is regular
 #     #kernel will have size [x,y,shells,filters]
