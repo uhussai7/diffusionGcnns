@@ -8,7 +8,7 @@ from tensorflow.keras import activations
 import numpy as np
 import group_d6 as d6
 
-
+import tensorflow as tf
 
 
 class groupConv(Layer):
@@ -20,7 +20,7 @@ class groupConv(Layer):
                  #data_format=None,
                  #dilation_rate=(1, 1),
                  activation=None,
-                 use_bias=True,
+                 use_bias=False,
                  kernel_initializer='glorot_uniform',
                  bias_initializer='zeros',
                  kernel_regularizer=None,
@@ -47,6 +47,7 @@ class groupConv(Layer):
         if shells is None:
             shells=3
         self.shells=shells
+        self.kernel_n=[]
 
     def build(self, input_shape):
         """
@@ -77,7 +78,9 @@ class groupConv(Layer):
                                       name='kernel',
                                       regularizer=self.kernel_regularizer,
                                       constraint=self.kernel_constraint,
-                                      trainable=True)
+                                      trainable=True,dtype=tf.float32)
+
+
         if self.use_bias:
             self.bias = self.add_weight(shape=(self.filters,),
                                         initializer=self.bias_initializer,
@@ -91,8 +94,27 @@ class groupConv(Layer):
         super(groupConv, self).build(input_shape)  # Be sure to call this at the end
 
     def call(self, inputs):
+        #outputs=d6.conv2d(inputs.numpy(),self.kernel,self.deep)
+        #outputs=tf.d6.conv2d(inputs,self.kernel,self.deep)
+        #outputs=tf.py_function(d6.conv2d,(inputs,self.kernel,self.deep),Tout=tf.float32)
+        #outputs=K.variable(lambda:outputs)
+        #outputs=K.reshape(outputs,())
+        input_shape=list(inputs.shape)
+        kernel_e=tf.py_function(d6.conv2d,(1,self.kernel,self.deep),Tout=self.kernel.dtype)
+        #kernel_e=K.reshape(kernel_e,output_shape)
 
-        return K.dot(x, self.kernel)
+        outputs=K.conv2d(inputs,kernel_e,padding="same",data_format="channels_last")
+        #print(outputs.shape)
+        print(inputs.shape)
+        #outputs=tf.py_function(d6.gpad,(outputs,self.deep),Tout=tf.float32)
+        #if self.use_bias:
+        #      outputs=K.bias_add(outputs,self.bias)
+        #output_shape=tf.TensorShape([None,6,30,36])
+        output_shape = tf.TensorShape(self.compute_output_shape(input_shape))
+        outputs.set_shape(output_shape)
+
+        return tf.cast(outputs,tf.float32)
+        #return inputs
 
     def compute_output_shape(self, input_shape):
-        return (input_shape[0], self.output_dim)
+        return tf.TensorShape((input_shape[0:-1]+[12*self.filters,]))

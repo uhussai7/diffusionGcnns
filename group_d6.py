@@ -2,7 +2,10 @@ import numpy as np
 from tensorflow.keras import backend as K
 from functools import reduce
 from tensorflow import gather
+from tensorflow import executing_eagerly
+executing_eagerly()
 
+import tensorflow as tf
 # def project(kernel):
 #     """
 #     Projects onto kernel basis. Fancy way of saying extract coefficients
@@ -146,7 +149,7 @@ def gpad(output,deep):
     #         input[1:H,c*(H+1)] = np.copy(input[1,(H+1)*ct+1:(H+1)*c-1])
     #         ct=(c+2)%H
     #         input[H,(H+1)*c+1:(H+1)*c+H] =np.copy(np.flip(input[1:H,(ct+1)*(H+1)-2]))
-    if deep==1:
+    #if deep==1:
         #print("under construction")
         #for each real channel you have to pad each of the 12 orientation channels.
         #the padding procedure is the same as scalar EXCEPT you have to copy from a
@@ -154,76 +157,77 @@ def gpad(output,deep):
         #might make sense to have a pad scalar function seperately so code is not
         #repeate.
 
-        shape=output.shape.as_list()
-        input_dim=int(shape[-1]/12)
-        output_n=output.numpy()
-        newshape=shape[0:-1]+[input_dim,12]
-        output_n=np.reshape(output_n,newshape)
+    shape=output.shape.as_list()
+    input_dim=int(shape[-1]/12)
+    output_n=output.numpy()
+    newshape=shape[0:-1]+[input_dim,12]
+    output_n=np.reshape(output_n,newshape)
 
-        strip=np.arange(H)
-        strips = np.arange(H-1)
-        CW=H+1
+    strip=np.arange(H)
+    strips = np.arange(H-1)
+    CW=H+1
 
-        for b in range(0,shape[0]): #handle the batch size first off
-            for i in range(0,input_dim):
-                for r in range(0,12): #this is each orientataion channel
-                    for c in range(0,5):
+    for b in range(0,shape[0]): #handle the batch size first off
+        for i in range(0,input_dim):
+            for r in range(0,12): #this is each orientataion channel
+                for c in range(0,5):
 
-                        if c==0: #left
-                            ct = c - 1
-                            rot_dir=1 #change to minus if you want rotation the other way
-                            if r<=5: #left
-                                rt=(r+rot_dir)%6
-                            if r>5:
-                                rt=((r-6+rot_dir) % 6) + 6
-                            row=1+strips
-                            col=c*CW
-                            row1 = 1
-                            col1 = ct*CW+1+strips
-                            #output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
-                            output_n[b, row,col, i, r] = np.copy(output_n[b, row1,col1 , i, rt])
+                    if c==0: #left
+                        ct = c - 1
+                        rot_dir=1 #change to minus if you want rotation the other way
+                        if r<=5: #left
+                            rt=(r+rot_dir)%6
+                        if r>5:
+                            rt=((r-6+rot_dir) % 6) + 6
+                        row=1+strips
+                        col=c*CW
+                        row1 = 1
+                        col1 = ct*CW+1+strips
+                        #output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
+                        output_n[b, row,col, i, r] = np.copy(output_n[b, row1,col1 , i, rt])
 
-                        if c==4: #right
-                            ct=(c+3) %H
-                            if r <= 5:  # next two if statements for reflection padding
-                                rt = ((2 - r) % 6) + 6
-                            if r <= 5:
-                                rt = (2 - (r - 6)) % 6
-                            row = strip
-                            col = -1
-                            row1 = H-1
-                            col1 = ct*CW+1+ strip
-                            #output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
-                            output_n[b, row, col, i, r] = np.flip(np.copy(output_n[b, row1, col1, i, rt]))
-
-                        rot_dir = -1 #top  # change to minus if you want rotation the other way
-                        ct = (c + 1)%H
+                    if c==4: #right
+                        ct=(c+3) %H
+                        if r <= 5:  # next two if statements for reflection padding
+                            rt = ((2 - r) % 6) + 6
                         if r <= 5:
-                            rt = (r + rot_dir) % 6
-                        if r > 5:
-                            rt = ((r - 6 + rot_dir) % 6) + 6
-                        row = 0
-                        col = c*CW+1+strip
-                        row1 = strip
-                        col1 = ct*CW+1
-                        #output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
-                        output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
+                            rt = (2 - (r - 6)) % 6
+                        row = strip
+                        col = -1
+                        row1 = H-1
+                        col1 = ct*CW+1+ strip
+                        #output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
+                        output_n[b, row, col, i, r] = np.flip(np.copy(output_n[b, row1, col1, i, rt]))
+
+                    rot_dir = -1 #top  # change to minus if you want rotation the other way
+                    ct = (c + 1)%H
+                    if r <= 5:
+                        rt = (r + rot_dir) % 6
+                    if r > 5:
+                        rt = ((r - 6 + rot_dir) % 6) + 6
+                    row = 0
+                    col = c*CW+1+strip
+                    row1 = strip
+                    col1 = ct*CW+1
+                    #output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
+                    output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
 
 
-                        ct = (c + 3)%H #bottom
-                        if r<=5: #next two if statements for reflection padding
-                            rt=((2-r)%6)+6
-                        if r<=5:
-                            rt=(2-(r-6))%6
-                        row = H
-                        col = c*CW + 1+strips
-                        row1 = 1+strips
-                        col1 = ct * CW -2
-                        #output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
-                        output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
+                    ct = (c + 3)%H #bottom
+                    if r<=5: #next two if statements for reflection padding
+                        rt=((2-r)%6)+6
+                    if r<=5:
+                        rt=(2-(r-6))%6
+                    row = H
+                    col = c*CW + 1+strips
+                    row1 = 1+strips
+                    col1 = ct * CW -2
+                    #output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
+                    output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
 
-        output_n=np.reshape(output_n,shape)
-        return K.variable(output_n)
+    output_n=np.reshape(output_n,shape)
+    output_n=K.variable(output_n)
+    return output_n.read_value()
 
 def conv2d(input,kernel,deep):
     """
@@ -242,42 +246,58 @@ def conv2d(input,kernel,deep):
     #in = 3
     #we have to dump the froup expansion into the channel dimension
 
-    shape=kernel.shape
-    Ns = kernel.shape[-2:]
-    N = reduce(lambda x, y: x * y, Ns)
+
+    #print(shape)
     if deep==0:
-        kernel = K.reshape(kernel, [7, N])
-        kernel_e=expand_scalar(kernel.numpy(),N)
-        new_shape=shape.as_list()
+        kernel = np.moveaxis(kernel, 0, 1)
+        kernel = np.moveaxis(kernel, -1, 0)
+        shape = list(kernel.shape)
+        Ns = kernel.shape[-2:]
+        N = reduce(lambda x, y: x * y, Ns)
+        kernel = np.reshape(kernel, [7, N])
+        kernel_e=expand_scalar(kernel,N)
+        new_shape=shape
         new_shape[0]=3
         new_shape[-1]=12*new_shape[-1]
-        new_shape=[3,]+ new_shape
+        new_shape=([3,]+ new_shape)
         kernel_e=np.reshape(kernel_e,[7,12*N])
         kernel_e=unproject(kernel_e)
         kernel_e=np.reshape(kernel_e,new_shape)
-        kernel_e=K.variable(kernel_e) #orientation channels running fastestg1.kerne
-        return gpad(K.conv2d(input, kernel_e,padding="same"), 1)
-        #return kernel_e
+         #orientation channels running fastestg1.kerne
 
-    if deep==1:
-        kernel = K.reshape(kernel, [7,12,N])
-        kernel_e=expand_regular(kernel.numpy(),N)
-        new_shape = shape.as_list()
+
+
+        #output= K.variable(gpad(K.conv2d(input, kernel_e,padding="same"), 1))
+        #output.set_shape(output.getshape())
+
+        #return  output.read_value()
+        kernel_e=np.moveaxis(kernel_e,0,-1)
+        kernel_e = np.moveaxis(kernel_e, 0, -1)
+        kernel_e=np.moveaxis(kernel_e,0,1)
+        return kernel_e
+    if deep==1: ## WARNING: this needs to be updated desperately
+        kernel = np.reshape(kernel, [7,12,N])
+        kernel_e=expand_regular(kernel,N)
+        new_shape = shape
         new_shape[0]=3
-        #new_shape[-1] = 12 * new_shape[-1]
-        new_shape=[3,] +new_shape + [12,]
+        new_shape[-1] = 12 * new_shape[-1]
+        new_shape=([3,] +new_shape)
         kernel_e=np.reshape(kernel_e,[7,12*12*N])
         kernel_e=unproject(kernel_e)
         kernel_e=np.reshape(kernel_e,new_shape)
-        kernel_e=np.moveaxis(kernel_e,2,-2)
+        kernel_e=np.moveaxis(kernel_e,2,3)
+        N_in=new_shape[2]*new_shape[3]
+        new_shape=[new_shape[0],new_shape[1],N_in,new_shape[-1]]
+        kernel_e = np.reshape(kernel_e, new_shape)
         kernel_e=K.variable(kernel_e)
-
         # outie=[]
         # for phi in range(0,12):
         #      outie.append(gpad(K.conv2d()))
 
-        return kernel_e
-        #return gpad(K.conv2d(input,kernel_e,padding="same"),deep)
-
-#     # if input has size [batch, x,y,shells*12] it is regular
+        #return kernel_e
+        #output=K.variable(gpad(K.conv2d(input,kernel_e,padding="same"),deep))
+        #output.set_shape(output.getshape())
+        #return  output.read_value()
+        return kernel_e.read_value()
+# if input has size [batch, x,y,shells*12] it is regular
 #     #kernel will have size [x,y,shells,filters]
