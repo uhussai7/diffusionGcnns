@@ -4,6 +4,7 @@ from functools import reduce
 from tensorflow import gather
 from tensorflow import executing_eagerly
 executing_eagerly()
+import torch
 
 import tensorflow as tf
 # def project(kernel):
@@ -141,8 +142,7 @@ def reflect_deep(weights, phi, N):
 
 
 def gpad(output,deep):
-    shape=output.shape.as_list()
-    H=shape[1]-1
+
     # if deep==0: #this padding should already be performed but keeping here if we later generalize
     #     for c in range(0,5): #padding
     #         ct=c-1
@@ -157,11 +157,12 @@ def gpad(output,deep):
         #might make sense to have a pad scalar function seperately so code is not
         #repeate.
 
-    shape=output.shape.as_list()
-    input_dim=int(shape[-1]/12)
-    output_n=output.numpy()
-    newshape=shape[0:-1]+[input_dim,12]
-    output_n=np.reshape(output_n,newshape)
+    shape = list(output.shape)
+    H=shape[2]-1
+    input_dim=int(shape[1]/12)
+    #output_n=output.numpy()
+    newshape=[shape[0],input_dim,12]+shape[-2:]
+    output_n=output.view(newshape)
 
     strip=np.arange(H)
     strips = np.arange(H-1)
@@ -184,7 +185,7 @@ def gpad(output,deep):
                         row1 = 1
                         col1 = ct*CW+1+strips
                         #output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
-                        output_n[b, row,col, i, r] = np.copy(output_n[b, row1,col1 , i, rt])
+                        output_n[b, i, r,row,col,] = output_n[b, i, rt, row1,col1 ]
 
                     if c==4: #right
                         ct=(c+3) %H
@@ -197,7 +198,7 @@ def gpad(output,deep):
                         row1 = H-1
                         col1 = ct*CW+1+ strip
                         #output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
-                        output_n[b, row, col, i, r] = np.flip(np.copy(output_n[b, row1, col1, i, rt]))
+                        output_n[b, i, r, row, col] = torch.flip(output_n[b, i, rt, row1, col1],[0])
 
                     rot_dir = -1 #top  # change to minus if you want rotation the other way
                     ct = (c + 1)%H
@@ -210,7 +211,7 @@ def gpad(output,deep):
                     row1 = strip
                     col1 = ct*CW+1
                     #output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
-                    output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
+                    output_n[b, i, r, row, col] = output_n[b, i, rt, row1, col1]
 
 
                     ct = (c + 3)%H #bottom
@@ -223,11 +224,11 @@ def gpad(output,deep):
                     row1 = 1+strips
                     col1 = ct * CW -2
                     #output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
-                    output_n[b, row, col, i, r] = np.copy(output_n[b, row1, col1, i, rt])
+                    output_n[b, i, r, row, col] = output_n[b, i, rt, row1, col1]
 
-    output_n=np.reshape(output_n,shape)
-    output_n=K.variable(output_n)
-    return output_n.read_value()
+    #output_n=torch.vie  (output_n,shape)
+    #output_n=K.variable(output_n)
+    return output_n.view(shape)
 
 def conv2d(input,kernel,deep):
     """
@@ -249,8 +250,7 @@ def conv2d(input,kernel,deep):
 
     #print(shape)
     if deep==0:
-        kernel = np.moveaxis(kernel, 0, 1)
-        kernel = np.moveaxis(kernel, -1, 0)
+        kernel=xfm_kernel(kernel,deep)
         shape = list(kernel.shape)
         Ns = kernel.shape[-2:]
         N = reduce(lambda x, y: x * y, Ns)
@@ -263,19 +263,18 @@ def conv2d(input,kernel,deep):
         kernel_e=np.reshape(kernel_e,[7,12*N])
         kernel_e=unproject(kernel_e)
         kernel_e=np.reshape(kernel_e,new_shape)
-         #orientation channels running fastestg1.kerne
 
-
-
-        #output= K.variable(gpad(K.conv2d(input, kernel_e,padding="same"), 1))
-        #output.set_shape(output.getshape())
-
-        #return  output.read_value()
         kernel_e=np.moveaxis(kernel_e,0,-1)
         kernel_e = np.moveaxis(kernel_e, 0, -1)
         kernel_e=np.moveaxis(kernel_e,0,1)
         return kernel_e
     if deep==1: ## WARNING: this needs to be updated desperately
+        kernel =np.moveaxis(kernel,0,2)
+        kernel =np.moveaxis(kernel,-1,0)
+        kernel = np.moveaxis(kernel,1,2)
+        shape = list(kernel.shape)
+        Ns = kernel.shape[-2:]
+        N = reduce(lambda x, y: x * y, Ns)
         kernel = np.reshape(kernel, [7,12,N])
         kernel_e=expand_regular(kernel,N)
         new_shape = shape
@@ -289,7 +288,11 @@ def conv2d(input,kernel,deep):
         N_in=new_shape[2]*new_shape[3]
         new_shape=[new_shape[0],new_shape[1],N_in,new_shape[-1]]
         kernel_e = np.reshape(kernel_e, new_shape)
-        kernel_e=K.variable(kernel_e)
+
+        kernel_e=np.moveaxis(kernel_e,2,0)
+        kernel_e=np.moveaxis(kernel_e,-1,0)
+
+
         # outie=[]
         # for phi in range(0,12):
         #      outie.append(gpad(K.conv2d()))
@@ -298,6 +301,23 @@ def conv2d(input,kernel,deep):
         #output=K.variable(gpad(K.conv2d(input,kernel_e,padding="same"),deep))
         #output.set_shape(output.getshape())
         #return  output.read_value()
-        return kernel_e.read_value()
+        return kernel_e
 # if input has size [batch, x,y,shells*12] it is regular
 #     #kernel will have size [x,y,shells,filters]
+
+def xfm1_kernel(kernel,deep):
+    if deep==0:
+        kernel=np.moveaxis(kernel,0,1)
+        kernel = np.moveaxis(kernel, -1, 0)
+        return kernel
+    if deep==1:
+        kernel = np.moveaxis(kernel, 2, 1)
+        kernel = np.moveaxis(kernel,-1,0)
+        kernel = np.moveaxis(kernel,1,-1)
+        return kernel
+
+def xfm2_kernel(kernel,deep):
+        kernel= np.moveaxis(-2,0)
+        kernel= np.moveaxis(-1,0)
+        return kernel
+
