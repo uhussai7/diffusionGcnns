@@ -1,58 +1,37 @@
 import numpy as np
-from tensorflow.keras import backend as K
-from functools import reduce
-from tensorflow import gather
-from tensorflow import executing_eagerly
-executing_eagerly()
 import torch
-
-import tensorflow as tf
-# def project(kernel):
-#     """
-#     Projects onto kernel basis. Fancy way of saying extract coefficients
-#     :param kernel: this will have shape 3 x 3 x (N_shells x N_filters) but has to be numpy
-#     :return: weights this will have shape 6 x (N_shells x N_filters) will be numpy
-#     """
-#     N=kernel.shape[-1]
-#     weights = np.empty([7,N])
-#     for i in range(0,N):
-#         weights[0,i] = kernel[1, 2, i]
-#         weights[1,i] = kernel[0, 2, i]
-#         weights[2,i] = kernel[0, 1, i]
-#         weights[3,i] = kernel[1, 0, i]
-#         weights[4,i] = kernel[2, 0, i]
-#         weights[5,i] = kernel[2, 1, i]
-#         weights[6, i] = kernel[1, 1, i]
-#
-#     return weights
+from functools import reduce
 
 
 def unproject(weights):
     """
-    Takes coefficients and puts it back in kernel form
-    :param weights: has shape 6 x (N_shells x N_filters) but has to be numpy
-    :return: kernel 3 x 3 x (N_shells x N_filters) but has to be numpy
+    Takes a tensor of coefficients and puts it into a convolution form
+    :param waeights:
+    :return:
     """
-    N=weights.shape[-1]
-    kernel = np.zeros([3,3,N])
+
+    #expected input shape is [N,7]
+    N=weights.shape[0]
+    kernel=torch.zeros([N,3,3],requires_grad=False)
     for i in range(0,N):
-        kernel[1, 2,i] = weights[0,i]
-        kernel[0, 2,i] = weights[1,i]
-        kernel[0, 1,i] = weights[2,i]
-        kernel[1, 0,i] = weights[3,i]
-        kernel[2, 0,i] = weights[4,i]
-        kernel[2, 1,i] = weights[5,i]
-        kernel[1, 1,i] = weights[6, i]
+        kernel[i,1, 2] = weights[i,0]
+        kernel[i,0, 2] = weights[i,1]
+        kernel[i,0, 1] = weights[i,2]
+        kernel[i,1, 0] = weights[i,3]
+        kernel[i,2, 0] = weights[i,4]
+        kernel[i,2, 1] = weights[i,5]
+        kernel[i,1, 1] = weights[i,6]
     return kernel
 
 def rotate(weights, angle,N):
     """
-    Counter clockwise rotation
-    :param weights: numpy array of 7 weights, center weight at end
-    :param angle: angle is represented as an integer
-    :param N: total number of filters
-    :return: rotated weights
+    Rotates weights in linear configuration
+    :param weights:
+    :param angle:
+    :param N:
+    :return:
     """
+
     if angle is None:
         angle = 1
     if int(angle) is False:
@@ -60,12 +39,10 @@ def rotate(weights, angle,N):
     else:
         angle = angle % 6
 
-    #weights_n = np.empty([7, N])
-    weights_n = np.copy(weights)
+    weights_n = weights.clone()
     for i in range(0,N):
-        weights_n[0:6,i] = np.copy(np.roll(weights[0:6,i], angle))
+        weights_n[i,0:6] = torch.roll(weights[i,0:6], angle)
     return weights_n
-
 
 def reflect(weights, axis,N):
     """
@@ -84,61 +61,66 @@ def reflect(weights, axis,N):
 
     # first reflect on x-axis and then rotate
     #weights_n=np.zeros([7,N])
-    weights_n=np.copy(weights)
+    weights_n=weights.clone()
     for i in range(0,N):
-        temp_weights = np.copy(weights[1:3,i])
-        weights_n[1:3,i] = np.copy(np.roll(weights[4:6,i], 1))
-        weights_n[4:6,i] = np.copy(np.roll(temp_weights, 1))
+        temp_weights = weights[i,1:3].clone()
+        weights_n[i,1:3] = torch.roll(weights[i,4:6], 1)
+        weights_n[i,4:6] = torch.roll(temp_weights, 1)
     return rotate(weights_n,axis,N)
 
-
 def expand_scalar(weights,N):
-
-    weights_e = np.zeros([7,N,12])
-    #weights_e = []
+    weights_e=torch.zeros([N,12,7])
     for angle in range(0,6):
         #weights_e.append(rotate(weights,angle,N))
-        weights_e[:,:,angle]=rotate(weights,angle,N)
+        weights_e[:,angle,:]=rotate(weights,angle,N)
     for axis in range (0,6):
         #weights_e.append(reflect(weights,axis,N))
-        weights_e[:, :, axis+6] = reflect(weights, axis, N)
-    return weights_e
-
-def expand_regular(weights,N):
-    weights_e = np.zeros([7,12,N,12])
-    for phi in range(0,6):
-        weights_e[:,:,:,phi]= rotate_deep(weights,phi,N)
-    for phi in range(0,6):
-        weights_e[:, :, :,phi+6] = reflect_deep(weights, phi, N)
+        weights_e[:, axis+6,:] = reflect(weights, axis, N)
     return weights_e
 
 def rotate_deep(weights,phi,N):
-    #wights has size [7,12,N] where the 12 is for rotations/reflections
+    #wights has size [N,12,7] where the 12 is for rotations/reflections
     #first 6 indices fo the 12 are for rotations and other six are for reflections
     #we need to shift these indices i.e. theta --> theta - phi
-
+    weights_n=weights#.clone()
     idx_rot=np.arange(6)
     idx_rot = (idx_rot - phi)%6
     idx_ref = idx_rot + 6
     idx = np.concatenate((idx_rot,idx_ref))
-    weights=weights[:,idx,:]
-    weights=np.reshape(weights,[7,12*N])
-    weights= rotate(weights,phi,N)
-    return np.reshape(weights,[7,12,N])
+    weights_n=weights_n[:,idx,:]
+    weights_n=weights_n.view(12*N,7)
+    weights_n= rotate(weights_n,phi,N)
+    return weights_n.view([N,12,7])
 
 def reflect_deep(weights, phi, N):
-    #wights has size [7,12,N] where the 12 is for rotations/reflections
+    #wights has size [N, 12,7] where the 12 is for rotations/reflections
     #first 6 indices fo the 12 are for rotations and other six are for reflections
-
+    weights_n=weights#.clone()
     idx_rot = np.arange(6)
     idx_rot = (phi-idx_rot) % 6
     idx_ref = idx_rot + 6
     idx = np.concatenate((idx_ref, idx_rot))
-    weights = weights[:, idx, :]
-    weights = np.reshape(weights, [7, 12 * N])
-    weights = reflect(weights, phi,N)
-    return np.reshape(weights, [7, 12, N])
+    weights_n = weights_n[:,idx,:]
+    weights_n=weights_n.view(12*N,7)
+    weights_n= reflect(weights_n,phi,N)
+    return weights_n.view([N,12,7])
 
+def expand_regular(weights,N):
+    weights_e =torch.zeros([12,N,12,7])
+    for phi in range(0,6):
+        weights_e[phi,:,:,:]= rotate_deep(weights,phi,N)
+    for phi in range(0,6):
+        weights_e[phi+6,:, :, :] = reflect_deep(weights, phi, N)
+    return weights_e
+
+def expand_bias(bias):
+    shape = bias.shape
+    N=shape[0]
+    bias_e=torch.zeros(N*12,requires_grad=False)
+    for i in range(0,N):
+        for j in range(0,12):
+            bias_e[12*i+j]=bias[i]
+    return bias_e
 
 
 def gpad(output,deep):
@@ -230,7 +212,8 @@ def gpad(output,deep):
     #output_n=K.variable(output_n)
     return output_n.view(shape)
 
-def conv2d(input,kernel,deep):
+
+def conv2d(input,weights,deep):
     """
     Takes group convolutions where the group is the dihedral group of order 12
     :param input: scalar or regular input, note that scalar layers need to be padded before hand
@@ -250,42 +233,37 @@ def conv2d(input,kernel,deep):
 
     #print(shape)
     if deep==0:
-        kernel=xfm1_kernel(kernel,deep)
+        kernel=weights
         shape = list(kernel.shape)
-        Ns = kernel.shape[-2:]
+        Ns = kernel.shape[0:2]
         N = reduce(lambda x, y: x * y, Ns)
-        kernel = np.reshape(kernel, [7, N])
+        kernel = kernel.view([N,7])
         kernel_e=expand_scalar(kernel,N)
         new_shape=shape
-        new_shape[0]=3
-        new_shape[-1]=12*new_shape[-1]
-        new_shape=([3,]+ new_shape)
-        kernel_e=np.reshape(kernel_e,[7,12*N])
+        new_shape[-1]=3
+        new_shape[0]=12*new_shape[0]
+        new_shape=(new_shape+[3,] )
+        kernel_e=kernel_e.view([12*N,7])
         kernel_e=unproject(kernel_e)
-        kernel_e=np.reshape(kernel_e,new_shape)
-
-        kernel_e=xfm2_kernel(kernel_e)
+        kernel_e=kernel_e.view(new_shape)
         return kernel_e
     if deep==1: ## WARNING: this needs to be updated desperately
-        kernel=xfm1_kernel(kernel,deep)
+        kernel=weights
         shape = list(kernel.shape)
-        Ns = kernel.shape[-2:]
+        Ns = kernel.shape[0:2]
         N = reduce(lambda x, y: x * y, Ns)
-        kernel = np.reshape(kernel, [7,12,N])
+        kernel = kernel.view( [N,12,7])
         kernel_e=expand_regular(kernel,N)
         new_shape = shape
-        new_shape[0]=3
-        new_shape[-1] = 12 * new_shape[-1]
-        new_shape=([3,] +new_shape)
-        kernel_e=np.reshape(kernel_e,[7,12*12*N])
+        new_shape[-1]=3
+        new_shape[0] = 12 * new_shape[0]
+        new_shape=(new_shape+[3,])
+        kernel_e= kernel_e.view([12*12*N,7])
         kernel_e=unproject(kernel_e)
-        kernel_e=np.reshape(kernel_e,new_shape)
-        kernel_e=np.moveaxis(kernel_e,2,3)
-        N_in=new_shape[2]*new_shape[3]
-        new_shape=[new_shape[0],new_shape[1],N_in,new_shape[-1]]
-        kernel_e = np.reshape(kernel_e, new_shape)
-
-        kernel_e = xfm2_kernel(kernel_e)
+        kernel_e=kernel_e.view(new_shape)
+        N_in=new_shape[1]*new_shape[2]
+        new_shape=[new_shape[0],N_in,new_shape[-2],new_shape[-1]]
+        kernel_e = kernel_e.view(new_shape)
 
         # outie=[]
         # for phi in range(0,12):
@@ -296,22 +274,3 @@ def conv2d(input,kernel,deep):
         #output.set_shape(output.getshape())
         #return  output.read_value()
         return kernel_e
-# if input has size [batch, x,y,shells*12] it is regular
-#     #kernel will have size [x,y,shells,filters]
-
-def xfm1_kernel(kernel,deep):
-    if deep==0:
-        kernel=np.moveaxis(kernel,0,1)
-        kernel = np.moveaxis(kernel, -1, 0)
-        return kernel
-    if deep==1:
-        kernel = np.moveaxis(kernel, 2, 1)
-        kernel = np.moveaxis(kernel,-1,0)
-        kernel = np.moveaxis(kernel,1,-1)
-        return kernel
-
-def xfm2_kernel(kernel):
-        kernel= np.moveaxis(kernel,-2,0)
-        kernel= np.moveaxis(kernel,-1,0)
-        return kernel
-
