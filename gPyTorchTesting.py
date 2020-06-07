@@ -21,7 +21,7 @@ class Net(Module):
     def __init__(self):
         super(Net,self).__init__()
         self.conv1=gConv2d(3,8,deep=0)
-        self.conv2=gConv2d(8,1,deep=1)
+        self.conv2=gConv2d(8,2,deep=1)
         #self.conv3 = gConv2d(2, 2, deep=1)
         #self.conv4 = gConv2d(2, 1, deep=1)
         self.mx=MaxPool2d(3)

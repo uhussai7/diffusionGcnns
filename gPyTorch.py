@@ -54,7 +54,7 @@ class gConv2d(Module):
 
     def forward(self,input):
         #with torch.no_grad():
-        self.kernel_e= d6.conv2d(1,self.weight.clone(),self.deep)
+        self.kernel_e= d6.conv2d(1,self.weight,self.deep)
         #self.kernel_e=torch.rand(self.kernel_e.shape)
         self.bias_e=d6.expand_bias(self.bias)
         return d6.gpad(F.conv2d(input.float(),self.kernel_e.float(),padding=(1,1)),self.deep)
