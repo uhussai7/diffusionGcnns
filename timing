@@ -1,0 +1,83 @@
+--------------------------------------------------------------------------------
+  Environment Summary
+--------------------------------------------------------------------------------
+PyTorch 1.6.0.dev20200527 compiled w/ CUDA 10.2
+Running with Python 3.7 and
+
+`pip list` truncated output:
+numpy==1.18.4
+torch==1.6.0.dev20200527
+torchvision==0.7.0.dev20200527
+--------------------------------------------------------------------------------
+  cProfile output
+--------------------------------------------------------------------------------
+         1223746 function calls (1173950 primitive calls) in 10.037 seconds
+
+   Ordered by: internal time
+   List reduced from 6225 to 15 due to restriction <15>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        5    2.955    0.591    2.955    0.591 {method 'run_backward' of 'torch._C._EngineBase' objects}
+       79    1.382    0.017    1.387    0.018 {built-in method _imp.create_dynamic}
+       10    1.016    0.102    1.026    0.103 C:\Users\isnice\diffusionGcnns\g_d6.py:134(gpad)
+        4    0.820    0.205    0.820    0.205 {built-in method numpy.fromfile}
+     1926    0.592    0.000    0.592    0.000 {method 'read' of '_io.FileIO' objects}
+     1926    0.553    0.000    1.145    0.001 <frozen importlib._bootstrap_external>:914(get_data)
+       10    0.443    0.044    0.443    0.044 C:\Users\isnice\diffusionGcnns\g_d6.py:5(unproject)
+     8740    0.339    0.000    0.339    0.000 {built-in method nt.stat}
+     1926    0.241    0.000    0.241    0.000 {built-in method marshal.loads}
+       21    0.111    0.005    0.111    0.005 {built-in method io.open}
+     6480    0.077    0.000    0.077    0.000 {built-in method roll}
+       60    0.073    0.001    0.172    0.003 C:\Users\isnice\diffusionGcnns\g_d6.py:46(reflect)
+      120    0.072    0.001    0.116    0.001 C:\Users\isnice\diffusionGcnns\g_d6.py:25(rotate)
+    79/64    0.064    0.001    0.159    0.002 {built-in method _imp.exec_dynamic}
+        1    0.060    0.060   10.039   10.039 Training.py:1(<module>)
+
+
+--------------------------------------------------------------------------------
+  autograd profiler output (CPU mode)
+--------------------------------------------------------------------------------
+        top 15 events sorted by cpu_time_total
+
+--------------------------------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ------------
+-----------------------
+Name                                    Self CPU total %  Self CPU total   CPU total %      CPU total        CPU time avg     CUDA total %     CUDA total       CUDA time avg    Number of Calls  Input Shape
+s
+--------------------------------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ------------
+-----------------------
+struct torch::autograd::CopySlices      16.13%           378.991ms        16.13%           378.991ms        378.991ms        NaN              0.000us          0.000us          1                []
+
+IndexPutBackward                        16.12%           378.950ms        16.12%           378.950ms        378.950ms        NaN              0.000us          0.000us          1                []
+
+index                                   16.12%           378.920ms        16.12%           378.920ms        378.920ms        NaN              0.000us          0.000us          1                []
+
+AsStridedBackward                       10.99%           258.208ms        10.99%           258.208ms        258.208ms        NaN              0.000us          0.000us          1                []
+
+as_strided                              10.94%           257.180ms        10.94%           257.180ms        257.180ms        NaN              0.000us          0.000us          1                []
+
+select                                  7.89%            185.439ms        7.89%            185.439ms        185.439ms        NaN              0.000us          0.000us          1                []
+
+SelectBackward                          5.10%            119.909ms        5.10%            119.909ms        119.909ms        NaN              0.000us          0.000us          1                []
+
+select                                  5.10%            119.876ms        5.10%            119.876ms        119.876ms        NaN              0.000us          0.000us          1                []
+
+add                                     3.29%            77.417ms         3.29%            77.417ms         77.417ms         NaN              0.000us          0.000us          1                []
+
+select                                  2.29%            53.813ms         2.29%            53.813ms         53.813ms         NaN              0.000us          0.000us          1                []
+
+select                                  1.49%            35.135ms         1.49%            35.135ms         35.135ms         NaN              0.000us          0.000us          1                []
+
+as_strided                              1.49%            34.975ms         1.49%            34.975ms         34.975ms         NaN              0.000us          0.000us          1                []
+
+roll                                    1.01%            23.828ms         1.01%            23.828ms         23.828ms         NaN              0.000us          0.000us          1                []
+
+roll                                    1.01%            23.810ms         1.01%            23.810ms         23.810ms         NaN              0.000us          0.000us          1                []
+
+narrow                                  1.01%            23.768ms         1.01%            23.768ms         23.768ms         NaN              0.000us          0.000us          1                []
+
+--------------------------------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ---------------  ------------
+-----------------------
+Self CPU time total: 2.350s
+CUDA time total: 0.000us
+
+

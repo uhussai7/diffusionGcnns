@@ -38,7 +38,7 @@ from somemath import tophemi
 # mask=dvol.mask.get_data()
 # i,j,k=np.where(mask ==1)
 #
-# #Choose 10000 voxels for training and 1000 for testing?
+# #Choose 10000 voxels for timing and 1000 for testing?
 Ntrain=25000
 Ntest=2500
 N=Ntrain+Ntest
@@ -137,7 +137,6 @@ for one_train in Y_train_hold:
 #
 model = Sequential() #model
 model.add(Conv2D(1,kernel_size=3,activation='linear', input_shape= (6,30,3)))
-model.add(MaxPooling2D(pool_size=(1,2)))
 model.add(Conv2D(8,kernel_size=3,activation='linear'))
 #model.add(Conv2D(4,kernel_size=3,activation='relu'))
 #model.add(Conv2D(32,kernel_size=3,activation='relu'))
@@ -151,6 +150,7 @@ model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
 model.fit(10/X_train,100*Y_train[:,4:7], epochs=50)
 # #
 pred_test=model.predict(X_test)
+model.add(MaxPooling2D(pool_size=(1,2)))
 test=np.copy(Y_test[:,4:7])
 test_new=[]
 for testt in test:

@@ -105,7 +105,7 @@ model2.fit(X_train,Y_train[:,4:7],epochs=50)
 
 
 # #test out the usual convolution and the sizes
-# #load some training data extracted before
+# #load some timing data extracted before
 # X_train=load('K:\\Datasets\\DiffusionIcosahedron\\X_train.npy')
 # Y_train=load('K:\\Datasets\\DiffusionIcosahedron\\Y_train.npy')
 # X_test=load('K:\\Datasets\\Diffug.sionIcosahedron\\X_test.npy')

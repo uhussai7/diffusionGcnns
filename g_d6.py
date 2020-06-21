@@ -2,7 +2,6 @@ import numpy as np
 import torch
 from functools import reduce
 
-
 def unproject(weights):
     """
     Takes a tensor of coefficients and puts it into a convolution form
@@ -11,7 +10,7 @@ def unproject(weights):
     """
 
     #expected input shape is [N,7]
-    N=weights.shape[0]
+    N=weights.shape[1]
     kernel=torch.zeros([3,3,N],requires_grad=False)
     for i in range(0,N):
         kernel[1, 2,i] = weights[0,i]
@@ -69,49 +68,58 @@ def reflect(weights, axis,N):
     return rotate(weights_n,axis,N)
 
 def expand_scalar(weights,N):
-    weights_e=torch.zeros([7,12,N])
+    weights=pre_expand(weights,0,N)
+    weights_e=torch.zeros([7,N,12])
     for angle in range(0,6):
         #weights_e.append(rotate(weights,angle,N))
-        weights_e[:,angle,:]=rotate(weights,angle,N)
+        weights_e[:,:,angle]=rotate(weights,angle,N)
     for axis in range (0,6):
         #weights_e.append(reflect(weights,axis,N))
-        weights_e[:, axis+6,:] = reflect(weights, axis, N)
-    return weights_e
+        weights_e[:,:,axis+6] = reflect(weights, axis, N)
+    return unproject(weights_e.reshape(7,N*12))
 
 def rotate_deep(weights,phi,N):
     #wights has size [N,12,7] where the 12 is for rotations/reflections
     #first 6 indices fo the 12 are for rotations and other six are for reflections
     #we need to shift these indices i.e. theta --> theta - phi
-    weights_n=weights#.clone()
+    weights_n=weights.clone()
     idx_rot=np.arange(6)
     idx_rot = (idx_rot - phi)%6
     idx_ref = idx_rot + 6
     idx = np.concatenate((idx_rot,idx_ref))
-    weights_n=weights_n[:,idx,:]
-    weights_n=weights_n.view(7,12*N)
-    weights_n= rotate(weights_n,phi,N)
-    return weights_n.view([7,12,N])
+    weights_n[:,:,:]=weights[:,idx,:]
+    weights_n=weights_n.reshape(7,12*N)
+    weights_n= rotate(weights_n,phi,12*N)
+    weights_n=weights_n.reshape(7,12,N)
+    return weights_n
 
 def reflect_deep(weights, phi, N):
     #wights has size [N, 12,7] where the 12 is for rotations/reflections
     #first 6 indices fo the 12 are for rotations and other six are for reflections
-    weights_n=weights#.clone()
+    weights_n=weights.clone()
     idx_rot = np.arange(6)
     idx_rot = (phi-idx_rot) % 6
     idx_ref = idx_rot + 6
     idx = np.concatenate((idx_ref, idx_rot))
-    weights_n = weights_n[:,idx,:]
-    weights_n=weights_n.view(7,12*N)
-    weights_n= reflect(weights_n,phi,N)
+    weights_n[:,:,:] = weights[:,idx,:]
+    weights_n=weights_n.reshape(7,12*N)
+    weights_n= reflect(weights_n,phi,12*N)
     return weights_n.view([7,12,N])
 
 def expand_regular(weights,N):
+    weights=pre_expand(weights,1,N)
     weights_e =torch.zeros([7,12,N,12])
     for phi in range(0,6):
-        weights_e[:,:,:,phi]= rotate_deep(weights,phi,N)
+        # if (phi==2):
+        #     print("t")
+        #     print(weights[:,0,0])
+        #     temp=rotate_deep(weights.clone(), phi, N)
+        #     print("n")
+        #     print(temp[:,2,0])
+        weights_e[:,:,:,phi]=rotate_deep(weights,phi,N)
     for phi in range(0,6):
         weights_e[:,:, :,phi+6] = reflect_deep(weights, phi, N)
-    return weights_e
+    return unproject(weights_e.reshape(7,12*N*12))
 
 def expand_bias(bias):
     shape = bias.shape
@@ -213,7 +221,8 @@ def gpad(output,deep):
     return output_n.view(shape)
 
 
-def conv2d(input,weights,deep):
+
+def conv2d(input,kernel,deep):
     """
     Takes group convolutions where the group is the dihedral group of order 12
     :param input: scalar or regular input, note that scalar layers need to be padded before hand
@@ -232,48 +241,42 @@ def conv2d(input,weights,deep):
 
 
     #print(shape)
+    shape = list(kernel.shape)
+    Cout = shape[0]
+    Cin = shape[1]
+    N = Cout * Cin
     if deep==0:
-        kernel=weights
-        shape = list(weights.shape)
-        Ns = kernel.shape[0:2]
-        N = reduce(lambda x, y: x * y, Ns)
-        kernel = kernel.view([N,7])
         kernel_e=expand_scalar(kernel,N)
-        kernel_e_square=unproject(kernel_e.view([12*N,7]))
-        new_shape=shape
-        new_shape[-1] = 12 * new_shape[0]
-        new_shape[0]=3
-        new_shape=([3,] +new_shape)
-        #kernel_e=kernel_e.view([12*N,7])
-        kernel_e_square = kernel_e_square.permute(-2, -1, 0)
-        kernel_e_square=kernel_e_square.view(new_shape)
-        kernel_e_square = kernel_e_square.permute(-1, -2, 0,1)
-        return kernel_e_square
-    if deep==1: ## WARNING: this needs to be updated desperately
-        kernel=weights
-        shape = list(kernel.shape)
-        Ns = kernel.shape[0:2]
-        N = reduce(lambda x, y: x * y, Ns)
-        #kernel = kernel.view( [N,12,7])
-        kernel_e=expand_regular(kernel.view( [N,12,7]),N)
-        new_shape = shape
-        new_shape[-1]=3
-        new_shape[0] = 12 * new_shape[0]
-        new_shape=(new_shape+[3,])
-        #kernel_e= kernel_e.view([12*12*N,7])
-        kernel_e_square=unproject(kernel_e.view([12*12*N,7]))
-        kernel_e_square=kernel_e_square.view(new_shape)
-        kernel_e_square = kernel_e_square.permute(-2, -1, 0)
-        N_in=new_shape[1]*new_shape[2]
-        new_shape=[new_shape[0],N_in,new_shape[-2],new_shape[-1]]
-        kernel_e = kernel_e.view(new_shape)
+        return post_expand(kernel_e,deep,shape)
 
-        # outie=[]
-        # for phi in range(0,12):
-        #      outie.append(gpad(K.conv2d()))
+    if deep==1:
+        kernel_e = expand_regular(kernel,N)
+        return post_expand(kernel_e, deep, shape)
 
-        #return kernel_e
-        #output=K.variable(gpad(K.conv2d(input,kernel_e,padding="same"),deep))
-        #output.set_shape(output.getshape())
-        #return  output.read_value()
-        return kernel_e
+
+def pre_expand(kernel,deep,N):
+    if deep==0:
+        kernel=kernel.permute(-1,1,0)
+        kernel=kernel.reshape(7,N)
+        return kernel
+
+    if deep==1:
+        kernel=kernel.permute(-1,-2,-3,-4)
+        kernel=kernel.reshape(7,12,N)
+        return kernel
+
+def post_expand(kernel,deep,shape):
+    if deep==0:
+        Cout=shape[0]
+        Cin=shape[1]
+        kernel=kernel.view([3,3,Cin,Cout*12])
+        kernel=kernel.permute([-1,-2,0,1])
+        return kernel
+    if deep==1:
+        Cout=shape[0]
+        Cin=shape[1]
+        kernel= kernel.view(3,3,12,Cin,Cout,12)
+        kernel= kernel.permute(0,1,3,2,4,5)
+        kernel=kernel.reshape(3,3,Cin*12,Cout*12)
+        kernel=kernel.permute(-1,-2,0,1)
+        return kernel
