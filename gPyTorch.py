@@ -23,22 +23,19 @@ class gConv2d(Module):
         self.kernel_e=[]
         self.bias_e=[]
 
+
         if deep==None:
             raise ValueError('Specify deep')
+
+        self.basis = d6.basis_expansion(self.deep)
 
         #deep vs 1st layer
         #if in_channels==self.shells:
         if self.deep==0:
-            #self.deep=0
             self.weight=Parameter(torch.Tensor(out_channels,in_channels,self.kernel_size))
-            #self.kernel_e=torch.zeros(12*self.out_channels,self.in_channels,3,3) ##
-            self.kernel_e= d6.conv2d(1,self.weight,self.deep)
 
         elif self.deep==1: #and (in_channels % 12)==0:
-            #real_in=int(in_channels/12)
             self.weight = Parameter(torch.Tensor(out_channels,in_channels,12,self.kernel_size))
-            #self.kernel_e=torch.zeros(12*self.out_channels,12*self.in_channels,3,3) ##
-            self.kernel_e= d6.conv2d(1,self.weight,self.deep)
 
 
         else:
@@ -49,7 +46,6 @@ class gConv2d(Module):
 
         self.bias = Parameter(torch.Tensor(out_channels))
         #self.bias_e=torch.zeros(12*out_channels) ##
-        self.bias_e = d6.expand_bias(self.bias)
 
         self.reset_parameters()
     def reset_parameters(self):
@@ -61,8 +57,10 @@ class gConv2d(Module):
     def forward(self,input):
         #with torch.no_grad():
         #self.kernel_e=torch.rand(self.kernel_e.shape)
-        #return d6.gpad(F.conv2d(input.float(),self.kernel_e.float(),padding=(1,1),bias=self.bias_e),self.deep)
-        return F.conv2d(input.float(),self.kernel_e.float(),padding=(1,1),bias=self.bias_e)
+        self.bias_e = d6.expand_bias(self.bias)
+        self.kernel_e=d6.basis_mul(self.weight,self.basis,self.deep)
+        return d6.gpad(F.conv2d(input.float(),self.kernel_e.float(),padding=(1,1),bias=self.bias_e),self.deep)
+        #return F.conv2d(input.float(),self.kernel_e.float(),padding=(1,1),bias=self.bias_e)
 
 class opool(Module):
     def __init__(self,in_channels):

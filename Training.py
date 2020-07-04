@@ -22,10 +22,10 @@ from torch.utils.data import DataLoader
 
 
 ##Get data##
-X_train=load('K:\\Datasets\\DiffusionIcosahedron\\X_train.npy')
-Y_train=load('K:\\Datasets\\DiffusionIcosahedron\\Y_train.npy')
-X_test=load('K:\\Datasets\\DiffusionIcosahedron\\X_test.npy')
-Y_test=load('K:\\Datasets\\DiffusionIcosahedron\\Y_test.npy')
+X_train=load('/home/uzair/Datasets/dtiTraining/X_train.npy')
+Y_train=load('/home/uzair/Datasets/dtiTraining/Y_train.npy')
+X_test=load('/home/uzair/Datasets/dtiTraining/X_test.npy')
+Y_test=load('/home/uzair/Datasets/dtiTraining/Y_test.npy')
 N_train=500
 ##Tensor flow timing##
 #Prepare data
@@ -113,13 +113,13 @@ optimizer.zero_grad()
 running_loss=0
 
 train=torch.utils.data.TensorDataset(input,target)
-trainloader=DataLoader(train,batch_size=32)
+trainloader=DataLoader(train,batch_size=8)
 
 train_loader_iter = iter(trainloader)
 imgs, labels = next(train_loader_iter)
 
 
-for epoch in range(0,3):
+for epoch in range(0,50):
     for n,(inputs,targets) in enumerate(trainloader,0):
         #print(n)
 
@@ -128,7 +128,7 @@ for epoch in range(0,3):
         output=net(inputs)
 
         loss=criterion(output,targets)
-        loss.backward(retain_graph=True)
+        loss.backward()
         optimizer.step()
         running_loss += loss.item()
     else:

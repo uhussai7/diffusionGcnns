@@ -168,63 +168,63 @@ def gpad(output,deep):
     strips = np.arange(H-1)
     CW=H+1
 
-    for b in range(0,shape[0]): #handle the batch size first off
-        for i in range(0,input_dim):
-            for r in range(0,12): #this is each orientataion channel
-                for c in range(0,5):
+    #for b in range(0,shape[0]): #handle the batch size first off
+    #    for i in range(0,input_dim):
+    for r in range(0,12): #this is each orientataion channel
+        for c in range(0,5):
 
-                    if c==0: #left
-                        ct = c - 1
-                        rot_dir=1 #change to minus if you want rotation the other way
-                        if r<=5: #left
-                            rt=(r+rot_dir)%6
-                        if r>5:
-                            rt=((r-6+rot_dir) % 6) + 6
-                        row=1+strips
-                        col=c*CW
-                        row1 = 1
-                        col1 = ct*CW+1+strips
-                        #output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
-                        output_n[b, i, r,row,col,] = output_n[b, i, rt, row1,col1 ]
+            if c==0: #left
+                ct = c - 1
+                rot_dir=1 #change to minus if you want rotation the other way
+                if r<=5: #left
+                    rt=(r+rot_dir)%6
+                if r>5:
+                    rt=((r-6+rot_dir) % 6) + 6
+                row=1+strips
+                col=c*CW
+                row1 = 1
+                col1 = ct*CW+1+strips
+                #output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
+                output_n[:, :, r,row,col,] = output_n[:, :, rt, row1,col1 ]
 
-                    if c==4: #right
-                        ct=(c+3) %H
-                        if r <= 5:  # next two if statements for reflection padding
-                            rt = ((2 - r) % 6) + 6
-                        if r <= 5:
-                            rt = (2 - (r - 6)) % 6
-                        row = strip
-                        col = -1
-                        row1 = H-1
-                        col1 = ct*CW+1+ strip
-                        #output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
-                        output_n[b, i, r, row, col] = torch.flip(output_n[b, i, rt, row1, col1],[0])
+            if c==4: #right
+                ct=(c+3) %H
+                if r <= 5:  # next two if statements for reflection padding
+                    rt = ((2 - r) % 6) + 6
+                if r <= 5:
+                    rt = (2 - (r - 6)) % 6
+                row = strip
+                col = -1
+                row1 = H-1
+                col1 = ct*CW+1+ strip
+                #output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
+                output_n[:, :, r, row, col] = torch.flip(output_n[:, :, rt, row1, col1],[0])
 
-                    rot_dir = -1 #top  # change to minus if you want rotation the other way
-                    ct = (c + 1)%H
-                    if r <= 5:
-                        rt = (r + rot_dir) % 6
-                    if r > 5:
-                        rt = ((r - 6 + rot_dir) % 6) + 6
-                    row = 0
-                    col = c*CW+1+strip
-                    row1 = strip
-                    col1 = ct*CW+1
-                    #output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
-                    output_n[b, i, r, row, col] = output_n[b, i, rt, row1, col1]
+            rot_dir = -1 #top  # change to minus if you want rotation the other way
+            ct = (c + 1)%H
+            if r <= 5:
+                rt = (r + rot_dir) % 6
+            if r > 5:
+                rt = ((r - 6 + rot_dir) % 6) + 6
+            row = 0
+            col = c*CW+1+strip
+            row1 = strip
+            col1 = ct*CW+1
+            #output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
+            output_n[:, :, r, row, col] = output_n[:, :, rt, row1, col1]
 
 
-                    ct = (c + 3)%H #bottom
-                    if r<=5: #next two if statements for reflection padding
-                        rt=((2-r)%6)+6
-                    if r<=5:
-                        rt=(2-(r-6))%6
-                    row = H
-                    col = c*CW + 1+strips
-                    row1 = 1+strips
-                    col1 = ct * CW -2
-                    #output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
-                    output_n[b, i, r, row, col] = output_n[b, i, rt, row1, col1]
+            ct = (c + 3)%H #bottom
+            if r<=5: #next two if statements for reflection padding
+                rt=((2-r)%6)+6
+            if r<=5:
+                rt=(2-(r-6))%6
+            row = H
+            col = c*CW + 1+strips
+            row1 = 1+strips
+            col1 = ct * CW -2
+            #output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
+            output_n[:, :, r, row, col] = output_n[:, :, rt, row1, col1]
 
     #output_n=torch.vie  (output_n,shape)
     #output_n=K.variable(output_n)

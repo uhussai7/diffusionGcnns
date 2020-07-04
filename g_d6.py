@@ -131,7 +131,105 @@ def expand_bias(bias):
     return bias_e
 
 
-def gpad(output,deep):
+# def gpad(output,deep):
+#
+#     # if deep==0: #this padding should already be performed but keeping here if we later generalize
+#     #     for c in range(0,5): #padding
+#     #         ct=c-1
+#     #         input[1:H,c*(H+1)] = np.copy(input[1,(H+1)*ct+1:(H+1)*c-1])
+#     #         ct=(c+2)%H
+#     #         input[H,(H+1)*c+1:(H+1)*c+H] =np.copy(np.flip(input[1:H,(ct+1)*(H+1)-2]))
+#     #if deep==1:
+#         #print("under construction")
+#         #for each real channel you have to pad each of the 12 orientation channels.
+#         #the padding procedure is the same as scalar EXCEPT you have to copy from a
+#         #different orientation channel
+#         #might make sense to have a pad scalar function seperately so code is not
+#         #repeate.
+#
+#     shape = list(output.shape)
+#     H=shape[2]-1
+#     input_dim=int(shape[1]/12)
+#     #output_n=output.numpy()
+#     newshape=[shape[0],input_dim,12]+shape[-2:]
+#     output_n=output.view(newshape)
+#
+#     strip=np.arange(H)
+#     strips = np.arange(H-1)
+#     CW=H+1
+#
+#     # for b in range(0,shape[0]): #handle the batch size first off
+#     #    for i in range(0,input_dim):
+#     for r in range(0, 12):  # this is each orientataion channel
+#         for c in range(0, 5):
+#
+#             if c == 0:  # left
+#                 ct = c - 1
+#                 rot_dir = 1  # change to minus if you want rotation the other way
+#                 if r <= 5:  # left
+#                     rt = (r + rot_dir) % 6
+#                 if r > 5:
+#                     rt = ((r - 6 + rot_dir) % 6) + 6
+#                 row = 1 + strips
+#                 col = c * CW
+#                 row1 = 1
+#                 col1 = ct * CW + 1 + strips
+#                 # output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
+#                 output_n[:, :, r, row, col, ] = output_n[:, :, rt, row1, col1]
+#
+#             if c == 4:  # right
+#                 ct = (c + 3) % H
+#                 if r <= 5:  # next two if statements for reflection padding
+#                     rt = ((2 - r) % 6) + 6
+#                 if r <= 5:
+#                     rt = (2 - (r - 6)) % 6
+#                 row = strip
+#                 col = -1
+#                 row1 = H - 1
+#                 col1 = ct * CW + 1 + strip
+#                 # output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
+#                 output_n[:, :, r, row, col] = torch.flip(output_n[:, :, rt, row1, col1], [0])
+#
+#             rot_dir = -1  # top  # change to minus if you want rotation the other way
+#             ct = (c + 1) % H
+#             if r <= 5:
+#                 rt = (r + rot_dir) % 6
+#             if r > 5:
+#                 rt = ((r - 6 + rot_dir) % 6) + 6
+#             row = 0
+#             col = c * CW + 1 + strip
+#             row1 = strip
+#             col1 = ct * CW + 1
+#             # output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
+#             output_n[:, :, r, row, col] = output_n[:, :, rt, row1, col1]
+#
+#             ct = (c + 3) % H  # bottom
+#             if r <= 5:  # next two if statements for reflection padding
+#                 rt = ((2 - r) % 6) + 6
+#             if r <= 5:
+#                 rt = (2 - (r - 6)) % 6
+#             row = H
+#             col = c * CW + 1 + strips
+#             row1 = 1 + strips
+#             col1 = ct * CW - 2
+#             # output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
+#             output_n[:, :, r, row, col] = output_n[:, :, rt, row1, col1]
+#
+#     #output_n=torch.vie  (output_n,shape)
+#     #output_n=K.variable(output_n)
+#     return output_n.view(shape)
+
+class padder():
+    def __init__(self):
+        self.theta=[]
+        self.long=[]
+        self.short=[]
+        self.c_idx=[]
+
+
+
+
+def padding_indices(H,deep):
 
     # if deep==0: #this padding should already be performed but keeping here if we later generalize
     #     for c in range(0,5): #padding
@@ -147,78 +245,74 @@ def gpad(output,deep):
         #might make sense to have a pad scalar function seperately so code is not
         #repeate.
 
+    #H=shape[2]-1
+
+    #generate the indices (although we will have to this function afterwards)
+    theta=np.arange(12)
+    s_idx= 1+np.arange(H-1)
+    s_idxa=s_idx # short indices
+    s_idxa=s_idxa.reshape(1,H-1)
+    l_idx=s_idxa #long indices for top padding
+    for c in range(0, 4):
+        l_idx = np.column_stack((l_idx, s_idxa + (c + 1) * (H + 1)))
+    l_idx=l_idx.reshape(5*(H-1))
+
+
+    theta_L=np.copy(theta)
+    theta_L[0:6]=(theta[0:6] + 1) % 6
+    theta_L[6:12]=((theta[6:12] - 6 + 1) % 6) +6
+
+    theta_T = np.copy(theta)
+    theta_T[0:6] = (theta[0:6] - 1) % 6
+    theta_T[6:12] = ((theta[6:12] - 6 - 1) % 6) + 6
+
+    theta_R = np.copy(theta)
+    theta_R[0:6] = ((2-theta[0:6]) % 6) + 6
+    theta_R[6:12] = (2-(theta[6:12]-6)) % 6
+
+    theta_B = np.copy(theta)
+    theta_B[0:6] = ((2-theta[0:6]) % 6) + 6
+    theta_B[6:12] = (2-(theta[6:12]-6)) % 6
+
+
+    #make a list of padder classes
+    #order is T,L,R,B
+    pad_idx=[padder() for i in range(4)]
+
+    pad_idx[0].theta = theta_T
+    pad_idx[1].theta = theta_L
+    pad_idx[2].theta = theta_R
+    pad_idx[3].theta = theta_B
+
+    c_idx = np.arange(5)
+    pad_idx[0].c_idx = (c_idx + 1) % 5
+    pad_idx[1].c_idx = (c_idx - 1) % 5
+    pad_idx[2].c_idx = (c_idx + 3) % 5
+    pad_idx[3].c_idx = (c_idx + 2) % 5
+
+    for pad in pad_idx:
+        pad.long=l_idx
+        pad.short= s_idx
+
+def gpad(output,pad_idx,deep):
+
     shape = list(output.shape)
-    H=shape[2]-1
+    h=shape[2]-1
+    H = h+1
+    W = 5*(H+1)
     input_dim=int(shape[1]/12)
     #output_n=output.numpy()
     newshape=[shape[0],input_dim,12]+shape[-2:]
     output_n=output.view(newshape)
 
-    strip=np.arange(H)
-    strips = np.arange(H-1)
-    CW=H+1
+    theta=np.arange(12)
 
-    for b in range(0,shape[0]): #handle the batch size first off
-        for i in range(0,input_dim):
-            for r in range(0,12): #this is each orientataion channel
-                for c in range(0,5):
+    #order is T,L,R,B
+    output_n[:, :, theta, pad_idx[0].long , 0] = output_n[:, :, pad_idx[0].theta, pad_idx[0].short, 1+6*pad_idx[0].c_idx[0]:1-6*pad_idx[0].c_idx[-1]:H+1]
 
-                    if c==0: #left
-                        ct = c - 1
-                        rot_dir=1 #change to minus if you want rotation the other way
-                        if r<=5: #left
-                            rt=(r+rot_dir)%6
-                        if r>5:
-                            rt=((r-6+rot_dir) % 6) + 6
-                        row=1+strips
-                        col=c*CW
-                        row1 = 1
-                        col1 = ct*CW+1+strips
-                        #output_n[b,1:H,c*(H+1),i,r] = np.copy(output_n[b,1,(H+1)*ct+1:(H+1)*c-1,i,rt])
-                        output_n[b, i, r,row,col,] = output_n[b, i, rt, row1,col1 ]
-
-                    if c==4: #right
-                        ct=(c+3) %H
-                        if r <= 5:  # next two if statements for reflection padding
-                            rt = ((2 - r) % 6) + 6
-                        if r <= 5:
-                            rt = (2 - (r - 6)) % 6
-                        row = strip
-                        col = -1
-                        row1 = H-1
-                        col1 = ct*CW+1+ strip
-                        #output_n[b,0:H,-1,i,r]= np.flip(np.copy(output_n[b,H-1,ct * (H + 1)+1:ct * (H + 1)+1+H,i,rt]))
-                        output_n[b, i, r, row, col] = torch.flip(output_n[b, i, rt, row1, col1],[0])
-
-                    rot_dir = -1 #top  # change to minus if you want rotation the other way
-                    ct = (c + 1)%H
-                    if r <= 5:
-                        rt = (r + rot_dir) % 6
-                    if r > 5:
-                        rt = ((r - 6 + rot_dir) % 6) + 6
-                    row = 0
-                    col = c*CW+1+strip
-                    row1 = strip
-                    col1 = ct*CW+1
-                    #output_n[b, 0, c * (H + 1)+1:c * (H + 1)+1+H, i, r] = np.copy(output_n[b, 0:H, ct*(H+1) , i, rt])
-                    output_n[b, i, r, row, col] = output_n[b, i, rt, row1, col1]
+    test[0, 1:5, 1:-(H - 1):(H + 1)]
 
 
-                    ct = (c + 3)%H #bottom
-                    if r<=5: #next two if statements for reflection padding
-                        rt=((2-r)%6)+6
-                    if r<=5:
-                        rt=(2-(r-6))%6
-                    row = H
-                    col = c*CW + 1+strips
-                    row1 = 1+strips
-                    col1 = ct * CW -2
-                    #output_n[b,H, (H + 1) * c + 1:(H + 1) * c + H,i,r] = np.copy(np.flip(output_n[b,1:H, (ct + 1) * (H + 1) - 2,i,rt]))
-                    output_n[b, i, r, row, col] = output_n[b, i, rt, row1, col1]
-
-    #output_n=torch.vie  (output_n,shape)
-    #output_n=K.variable(output_n)
-    return output_n.view(shape)
 
 
 
@@ -280,3 +374,78 @@ def post_expand(kernel,deep,shape):
         kernel=kernel.reshape(3,3,Cin*12,Cout*12)
         kernel=kernel.permute(-1,-2,0,1)
         return kernel
+
+def post_expand_basis(kernel,deep):
+    shape = kernel.shape
+    Cout = shape[0]
+    Cin= shape[1]
+    if deep==0:
+        kernel=kernel.permute(-2,-1,1,0,2)
+        kernel=kernel.reshape(3,3,Cin,Cout*12)
+        kernel = kernel.permute([-1, -2, 0, 1])
+        return kernel
+    if deep==1:
+        kernel=kernel.permute(-2,-1,1,-3,0,2)
+        kernel=kernel.reshape(3,3,Cin*12,Cout*12)
+        kernel = kernel.permute(-1, -2, 0, 1)
+        return kernel
+
+
+def basis_expansion(deep):
+
+    if deep==0:
+        basis_e=torch.zeros(7,12,1,3,3)
+        basis=torch.zeros(7)
+        basis[0]=1
+        for b in range(0,6):
+            basis=basis.view(1,1,7)
+            basis_e[b,:,:,:,:]=conv2d(1,basis.roll(b,-1),deep)
+        basis_e[-1,:,0,1,1]=1
+        return basis_e.view(7,12,3,3)
+    if deep==1:
+        basis_e=torch.zeros(12,7,12,12,3,3)
+        for t in range(0,12):
+            basis = torch.zeros([1,1,12, 7])
+            basis[0,0,t,-1]=1
+            basis_e[t, -1, :, :, :, :] = conv2d(1, basis, deep)
+            basis[:]=0
+            basis[0,0,t,0] = 1
+            for b in range(0,6):
+                basis_e[t,b,:,:,:,:]= conv2d(1, basis.roll(b,-1), deep)
+        return basis_e
+
+
+def basis_mul(weights,basis,deep):
+    if deep==0:
+        return post_expand_basis(torch.einsum('abc,cdef->abdef',weights.float(),basis.float()),deep)
+    if deep==1:
+        return post_expand_basis(torch.einsum('xyab,abcdef->xycdef',weights.float(),basis.float()),deep)
+
+
+# def padding_basis(H,W):
+#     basis=torch.BoolTensor(12,H,W,12,H,W)
+#     for a in range(0,12):
+#         for h in range(0,H):
+#             for w in range(0,W):
+#                 basis(a,h,w,a,h,w)=1
+
+
+
+
+
+
+weights=torch.tensor([1,2,3,4,5,6,7])
+weights=weights.view(1,1,7)
+basis=basis_expansion(0)
+test1=basis_mul(weights,basis,0)
+
+
+basis=basis_expansion(1)
+temp=torch.tensor([1,2,3,4,5,6,7])
+weights=torch.zeros([1,1,12,7])
+for t in range(0,12):
+    weights[0,0,t,:]=10*t+temp
+
+for i in range(0,100000):
+    #test=2*3
+    test=basis_mul(weights,basis,1)
