@@ -26,7 +26,7 @@ X_train=load('/home/uzair/Datasets/dtiTraining/X_train.npy')
 Y_train=load('/home/uzair/Datasets/dtiTraining/Y_train.npy')
 X_test=load('/home/uzair/Datasets/dtiTraining/X_test.npy')
 Y_test=load('/home/uzair/Datasets/dtiTraining/Y_test.npy')
-N_train=500
+N_train=25000
 ##Tensor flow timing##
 #Prepare data
 X_train_t=np.copy(10/X_train[0:N_train,:,:,:])
@@ -55,8 +55,11 @@ class Net(Module):
     def __init__(self):
         super(Net,self).__init__()
         self.flat=2160
-        self.conv1=gConv2d(3,4,deep=0)
-        self.conv2 = gConv2d(4, 4, deep=1)
+        self.conv1=gConv2d(3,16,5,deep=0)
+        self.bn1=BatchNorm2d(4)
+        self.conv2 = gConv2d(16, 8,5, deep=1)
+        self.conv3 = gConv2d(8, 4, 5, deep=1)
+
         #self.conv1=Conv2d(3,32,kernel_size=3,padding=[1,1])
         #self.conv2=Conv2d(32,16,kernel_size=3,padding=[1,1])
         #self.conv3=Conv2d(16,8,kernel_size=3,padding=[1,1])
@@ -71,43 +74,55 @@ class Net(Module):
         #self.conv4 = gConv2d(2, 1, deep=1)
         self.mx=MaxPool2d([2,2])
         #self.fc1=Linear(336,100)
-        self.fc2 = Linear(int(self.flat/12), 3)
+        self.fc2 = Linear(int(4*6*30/4), 3)
 
     def forward(self,x):
         x=self.conv1(x)
-        #x=self.conv2(x)
-        x =self.conv2(x)
-        #x = self.conv4(x)
+        #x=self.bn1(x)
+        x = self.conv2(x)
+        x =self.conv3(x)
+        #x =F.relu(self.conv3(x))
+        #x = self.bn1(x)
         x=self.pool(x)
         #x=self.mx(F.relu(self.conv3(x)))
         x=self.mx(x)
-        x=x.view(-1,int(self.flat/12))
+        x=x.view(-1,int(4*6*30/4))
         #x= self.fc1(x)
         #x =F.relu(self.fc2(x))
         x = self.fc2(x)
         return x
 
 #data
+#X_train_p=np.copy(10/X_train[0:N_train,:,:,:])
+#Y_train_p=np.copy(10*Y_train[0:N_train,1:4])
+#X_train_p[np.isinf(X_train_p)]=0
+
 X_train_p=np.copy(10/X_train[0:N_train,:,:,:])
 Y_train_p=np.copy(10000*Y_train[0:N_train,1:4])
 X_train_p[np.isinf(X_train_p)]=0
 
+bn=BatchNorm2d(3)
+bnf=BatchNorm1d(3)
 
 inputs=np.moveaxis(X_train_p,-1,1)
 inputs=torch.from_numpy(inputs.astype(np.float32))
+#inputs=bn(inputs)
 input=inputs.detach()
+input=input.cuda()
 
 target=Y_train_p
 targets=torch.from_numpy(target.astype(np.float32))
+#targets=bnf(targets)
 target=targets.detach()
+target=target.cuda()
 
 #net
-net=Net()
+net=Net().cuda()
 
 #criterion=nn.MSELoss()
 criterion=nn.L1Loss()
 
-optimizer=optim.Adam(net.parameters(),lr=0.001)
+optimizer=optim.Adam(net.parameters(),lr=0.0001)
 optimizer.zero_grad()
 
 running_loss=0
@@ -125,7 +140,7 @@ for epoch in range(0,50):
 
         optimizer.zero_grad()
 
-        output=net(inputs)
+        output=net(inputs.cuda())
 
         loss=criterion(output,targets)
         loss.backward()
@@ -140,6 +155,33 @@ for epoch in range(0,50):
 
 
 
+X_test_p=np.copy(10/X_test[0:N_train,:,:,:])
+Y_test_p=np.copy(10000*Y_test[0:N_train,1:4])
+X_test_p[np.isinf(X_test_p)]=0
+
+
+inputs=np.moveaxis(X_test_p,-1,1)
+inputs=torch.from_numpy(inputs.astype(np.float32))
+inputs=inputs.detach().cuda()
+
+target=Y_test_p
+targets=torch.from_numpy(target.astype(np.float32))
+targets=targets.detach().cuda()
+
+pred=net(inputs)
+true=targets
+
+import matplotlib.pyplot as plt
+
+fig, axs = plt.subplots(3)
+s=0
+t=10
+for r in range(0,3):
+    axs[r].set_aspect('equal')
+    axs[r].set_xlim([s,t])
+    axs[r].set_ylim([s, t])
+    axs[r].scatter(true[:,r].detach().cpu().numpy(), pred[:,r].detach().cpu().numpy(),s=0.1)
+    axs[r].plot([s,t],[s,t])
 
 
 

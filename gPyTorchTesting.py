@@ -21,8 +21,8 @@ from torch import nn
 class Net(Module):
     def __init__(self):
         super(Net,self).__init__()
-        self.conv1=gConv2d(3,1,deep=0)
-        self.conv2=gConv2d(1,1,deep=1)
+        self.conv1=gConv2d(3,1,5,deep=0)
+        self.conv2=gConv2d(1,1,5,deep=1)
         #self.conv3 = gConv2d(1, 1, deep=1)
         #self.conv3 = gConv2d(2, 2, deep=1)
         #self.conv4 = gConv2d(2, 1, deep=1)
@@ -44,8 +44,8 @@ net=Net()
 net.cpu()
 print(net)
 
-X_train=load('K:\\Datasets\\DiffusionIcosahedron\\X_train.npy')
-Y_train=100*load('K:\\Datasets\\DiffusionIcosahedron\\Y_train.npy')
+X_train=load('X_train.npy')
+Y_train=100*load('Y_train.npy')
 
 
 bn=BatchNorm2d(3)

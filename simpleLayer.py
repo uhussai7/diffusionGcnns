@@ -78,3 +78,7 @@ for c in range(0,4):
     test=np.column_stack((test,strip+(c+1)*(h+1)))
     #test=(test,test+h+1)
 
+for t in range(0,12):
+    for i in range(0,6):
+        for j in range(0,30):
+            test[t,i,j]=(1000*t+100*i+j)
