@@ -143,8 +143,8 @@ class isomesh:
                 for jj in range(0,N):
                     I=ii
                     J=(N+1)*c + jj + 1
-                    i=iii(ii,jj)
-                    j=jjj(ii, jj)
+                    i=[ii,jj]
+                    j=jjj[ii, jj]
                     self.s_flat[I,J]=self.cij2thetaphi(c,i,j)
 
     def cij2thetaphi(self,c,i,j):
@@ -183,9 +183,9 @@ for c in range(0,1):
             d=d+1
 
 mlab.show()
-dvol=diffusion.diffVolume()
-dvol.getVolume("C:\\Users\\uhussain\\Documents\\ShareVM\\Cortex\\101006\\Diffusion\\Diffusion")
-dvol.shells()
+# dvol=diffusion.diffVolume()
+# dvol.getVolume("C:\\Users\\uhussain\\Documents\\ShareVM\\Cortex\\101006\\Diffusion\\Diffusion")
+# dvol.shells()
 
 
 

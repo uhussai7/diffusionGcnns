@@ -2,16 +2,15 @@ import ioFunctions
 import numpy as np
 from scipy import interpolate
 import dipy
-import s2cnn
 from scipy.interpolate import griddata
 from scipy.interpolate import NearestNDInterpolator
 from scipy.interpolate import LinearNDInterpolator
 from scipy.interpolate import SmoothSphereBivariateSpline
 from scipy.interpolate import LSQSphereBivariateSpline
 import torch
-import s2conv
 import somemath
 import matplotlib.pyplot as plt
+from scipy.spatial import KDTree
 
 class diff2d():
     def __init__(self):
@@ -24,6 +23,7 @@ class diff2d():
         img=dvol.vol.getData()
         shape=img.shape
         img=img.reshape((shape[0]*shape[1]*shape[2],shape[3]),order='F')
+
 
 class dti():
     def __init__(self):
@@ -67,6 +67,7 @@ class diffVolume():
         self.bvecs = []
         self.bvecs_hemi_cart=[]
         self.bvecs_hemi_sphere=[]
+        self.bvecs_hemi_cart_kdtree=[]
         self.inds= []
         self.gtab = []
         self.img=[]
@@ -85,7 +86,7 @@ class diffVolume():
         """
         self.vol, self.gtab =ioFunctions.loadDiffVol(folder=folder)
         self.img = self.vol.get_data()
-        self.mask = ioFunctions.loadVol(filename=folder+"\\nodif_brain_mask.nii.gz")
+        self.mask = ioFunctions.loadVol(filename=folder+"/nodif_brain_mask.nii.gz")
 
     def makeInterpolator(self):
         """
@@ -150,6 +151,7 @@ class diffVolume():
         for bvecs in self.bvecs: #this is shells
             temp_bvec = []
             temp_vec = []
+
             for bvec in bvecs: #this is each vector in shell
                 r, theta, phi=dipy.core.sphere.cart2sphere(bvec[0],bvec[1],bvec[2])
                 #if theta > pi/2: #this is the anitpodal port becareful whether this is on or off
@@ -159,10 +161,14 @@ class diffVolume():
                 x,y,z=dipy.core.sphere.sphere2cart(1,theta,phi)
                 temp_vec.append([x,y,z])
                 temp_bvec.append([r,theta,phi])
+            self.bvecs_hemi_cart_kdtree.append(KDTree(temp_vec,10))
             self.bvecs_hemi_sphere.append(temp_bvec)
             self.bvecs_hemi_cart.append(temp_vec)
         self.bvecs_hemi_cart=np.asarray(self.bvecs_hemi_cart)
         self.bvecs_hemi_sphere=np.asarray(self.bvecs_hemi_sphere)
+
+
+
 
     def makeFlatHemisphere(self,p1,shell):
         s0 = []
@@ -172,6 +178,7 @@ class diffVolume():
         x=[]
         y=[]
         z=[]
+        interpolator=[]
         i = 0
         for ind in self.inds[shell]:
             x.append(self.bvecs_hemi_cart[shell][i][0])
@@ -196,15 +203,18 @@ class diffVolume():
 
         thph=np.column_stack((th,ph))
         xyz = np.column_stack((x, y, z))
-        #interpolator=LinearNDInterpolator(thph,1/s1)
-        #interpolator = NearestNDInterpolator(thph, 1 / s1)
-        interpolator = NearestNDInterpolator(xyz, s1/norm)
+        #interpolator=LinearNDInterpolator(thph,s1/norm)
+        #interpolator = NearestNDInterpolator(thph, s1 / norm)
+        #interpolator = NearestNDInterpolator(xyz, s1/norm)
         #interpolator = LinearNDInterpolator(xyz, s1/norm)
+        #interpolator = SmoothSphereBivariateSpline(thph[:,0],thph[:,1],s1/norm,s=0.1)
+        #interpolator = LSQSphereBivariateSpline(thph[:,0],thph[:,1],s1/norm)
+        interpolator=self.bvecs_hemi_cart_kdtree[shell]
 
 
         iso=somemath.isomesh()
         iso.get_icomesh()
-        iso.makeFlat(interpolator)
+        iso.makeFlat(interpolator,s1/norm)
         #print(interpolator(th,ph))
         return iso.s_flat
 
@@ -233,104 +243,3 @@ class diffVolume():
         #sphere_sig.plot()
         self.current_signal=sphere_sig
         plt.imshow(sphere_sig.grid)
-
-    def conv(self,p1,p2,N,shellN,tN=None):
-        """
-        :param p1: voxel 1 coordinates
-        :param p2: voxel 2 coordinates
-        :param N:  size of convolution plane
-        :param shellN: number of shells including b_0
-        :return: SO(3) function
-        """
-        #put functions on grid
-        so3=s2conv.so3()
-        so3.makeSo3(N,shellN)
-
-        so3.signal1 = [somemath.sphereSig() for i in range(0, shellN)]
-        so3.signal2 = [somemath.sphereSig() for i in range(0, shellN)]
-        #so3=np.empty([N,N,N,2,shellN])
-        theta = np.linspace(0, np.pi, N)
-        phi = np.linspace(0, 2 * np.pi, N)
-        ep=0.0001
-        if tN==None:
-            tN=10
-        tt = np.linspace(ep, np.pi-ep, tN)
-        tp = np.linspace(ep, 2 * np.pi-ep, tN)
-
-        for shell in range(0,shellN):
-            s1 = []
-            s2 = []
-            th = []
-            ph = []
-            i = 0
-            for ind in self.inds[shell]:
-                s1.append(self.img[p1[0], p1[1], p1[2], ind])
-                s2.append(self.img[p2[0], p2[1], p2[2], ind])
-                th.append(self.bvecs_hemi_sphere[shell][i][1])
-                ph.append(self.bvecs_hemi_sphere[shell][i][2])
-                i = i + 1
-            th = np.asarray(th)
-            ph = np.asarray(ph)
-            s1 = np.asarray(s1)
-            s2 = np.asarray(s2)
-            b=int(N/2)
-            ss1 = griddata((th, ph), 1/s1, (theta[None,:], phi[:,None]), method='nearest')#, fill_value=-1)
-            ss2= griddata((th, ph), 1/s2, (theta[None,:], phi[:,None]), method='nearest')#,fill_value=-1)
-            #lut_s1 = SmoothSphereBivariateSpline(th,ph,s1/s1.max(),s=0.6,eps=1e-8)
-            #lut_s2 = SmoothSphereBivariateSpline(th, ph, s2/s2.max(),s=0.6,eps=1e-8)
-            #lut_s1 = LSQSphereBivariateSpline(th, ph, s1 / s1.max(), tt,tp)#, eps=1e-8)
-            #lut_s2 = LSQSphereBivariateSpline(th, ph, s2 / s2.max(), tt,tp)#, eps=1e-8)
-            #ss1 = lut_s1(theta,phi)
-            #ss2 = lut_s2(theta, phi)
-            ss1=ss1/ss1.max()
-            ss2 = ss2 / ss1.max()
-            #ss1=somemath.parity_symmetrize(ss1)
-            #ss2 = somemath.parity_symmetrize(ss2)
-
-
-            sss1 = np.empty([N, N, 2])
-            sss1[:, :, 0] = np.real(ss1)
-            sss1[:, :, 1] = np.imag(ss1)
-
-            sss2 = np.empty([N, N, 2])
-            sss2[:, :, 0] = np.real(ss2)
-            sss2[:, :, 1] = np.imag(ss2)
-
-
-            so3.signal1[shell].grid = np.real(ss1)
-            so3.signal2[shell].grid = np.real(ss2)
-            so3.signal1[shell].N = N
-            so3.signal2[shell].N = N
-
-            g1 = torch.tensor(sss1, dtype=torch.float)
-            g1ft = s2cnn.soft.s2_fft.s2_fft(g1, b_out=b)
-            g1ftn = g1ft.numpy()
-
-            g2 = torch.tensor(sss2, dtype=torch.float)
-            g2ft = s2cnn.soft.s2_fft.s2_fft(g2, b_out=b)
-            g2ftn = g2ft.numpy()
-
-            # lets try to do a convoluion
-            xn1 = np.empty([b * b, 1, 1, 2])
-            xn1[:, 0, 0, 0] = g1ftn[:, 0]
-            xn1[:, 0, 0, 1] = g1ftn[:, 1]
-            x1 = torch.tensor(xn1, dtype=torch.float)
-
-            # lets try to do a convoluion
-            xn2 = np.empty([b * b, 1, 1, 2])
-            xn2[:, 0, 0, 0] = g2ftn[:, 0]
-            xn2[:, 0, 0, 1] = g2ftn[:, 1]
-            x2 = torch.tensor(xn2, dtype=torch.float)
-
-            xx = s2cnn.s2_mm(x1, x2)
-            xxift = s2cnn.so3_fft.so3_ifft(xx)
-            # xxift=s2cnn.so3_fft.SO3_ifft_real.apply(xx)
-            xxiftn = xxift.numpy()
-            xxiftnsmall = np.empty([N, N, N,2])
-            xxiftnsmall = xxiftn[0, 0, :, :, :, :]
-            xxiftnsmall = xxiftnsmall / xxiftnsmall.max()
-            so3.so3[:,:,:,:,shell]=xxiftnsmall #[beta, alpha, gamma, complex] beta=[0, pi], alpha=[0,2pi]  gamma=[0,2pi]
-        return so3
-
-        # def so3_grad(self):
-        #     size=

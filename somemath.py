@@ -493,7 +493,7 @@ class isomesh:
         self.chart_vertices = [] #the ordering of these vertices is different than the ordering of self.vertices
         self.chart_faces=[] #the faces are arranged so that 0:3, 4:7, etc. are each chart
         self.Points=[] #this is temporary
-        self.m= 4 #parameter for geodesic mesh
+        self.m=4  #parameter for geodesic mesh
         self.testStrip=np.empty([self.m+1,self.m+1]) #note that this is a half strip
         self.sphereFunction=np.empty([5,2,100])
         self.s_flat=[]
@@ -578,7 +578,7 @@ class isomesh:
             y.append(vertex[1])
             z.append(vertex[2])
         triangles=np.row_stack([face for face in self.faces])
-        mlab.triangular_mesh(x,y,z,triangles)
+        mlab.triangular_mesh(x,y,z,triangles,representation='wireframe')
         # mlab.show()
 
     #def constructStrip(self): #for testing
@@ -598,7 +598,7 @@ class isomesh:
 
         return out
 
-    def makeFlat(self,interpolator): #
+    def makeFlat(self,interpolator,signal): #
         m= self.m
         N= m+1
         height = N+1
@@ -619,19 +619,23 @@ class isomesh:
                     i = iii[ii, jj]
                     j = jjj[ii, jj]
                     theta,phi = self.cij2thetaphi(c, i, j)
-                    x_t, y_t, z_t = sphere2cart(1,theta,phi)
+                    x_t, y_t, z_t = sphere2cart(0.9,theta,phi)
                     #val1=interpolator(theta,phi)
-                    val1=interpolator(x_t,y_t,z_t)
+                    r=[x_t,y_t,z_t]
+                    val1=self.inverseDistanceInterp(r,interpolator,signal)
+                    #val1=interpolator(x_t,y_t,z_t)
                     x_t, y_t, z_t = sphere2cart(1, np.pi-theta,phi+np.pi)
+                    r = [x_t, y_t, z_t]
+                    val2 = self.inverseDistanceInterp(r, interpolator, signal)
                     #val2=interpolator(np.pi-theta,phi+np.pi)
-                    val2 = interpolator(x_t, y_t, z_t)
+                    #val2 = interpolator(x_t, y_t, z_t)
                     self.s_flat[I,J]= 0.5*(val1+val2)
         for c in range(0,5): #padding
             ct=c-1
             #print((N+1)*ct+1)
             #print((N+1)*ct+4)
             self.s_flat[1:N,c*(N+1)] = np.copy(self.s_flat[1,(N+1)*ct+1:(N+1)*c-1])
-            ct=(c+2)%N
+            ct=(c+2)%5
             self.s_flat[N,(N+1)*c+1:(N+1)*c+N] =np.copy(np.flip(self.s_flat[1:N,(ct+1)*(N+1)-2]))
 
         stacks=np.empty([N+1,N+1,5])
@@ -649,4 +653,13 @@ class isomesh:
         xyz=self.Points[c][t][v]
         r, theta, phi = cart2sphere(xyz[0],xyz[1],xyz[2])
         return theta, phi
+
+
+    def inverseDistanceInterp(self,r,kd,signal):
+       dist,inds=kd.query(r,10)
+       sigs=signal[inds]
+       dist=1/dist
+       norm=sum(dist)
+       return sum(dist*sigs)/norm
+
 
