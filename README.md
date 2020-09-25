@@ -1,6 +1,6 @@
 # diffusionGcnns
 
-Model to construct gauge equivariant layers in keras for diffusion MRI data.
+Model to construct gauge equivariant layers in pytorch for diffusion MRI data.
 
 ## Files
 
